@@ -43,4 +43,25 @@ class TranscriptTest {
         t.apply(StabilizerEvent.Space)
         assertEquals("CD", t.lastWord())
     }
+
+    @Test
+    fun completeWordReplacesPartialWordAndAddsSpace() {
+        val t = Transcript()
+        listOf("A", "K", "O").forEach { t.apply(StabilizerEvent.Letter(it)) }
+        t.apply(StabilizerEvent.Space)
+        listOf("M", "A", "G").forEach { t.apply(StabilizerEvent.Letter(it)) }
+        t.completeWord("MAGANDA")
+        assertEquals("AKO MAGANDA ", t.text)
+        assertTrue(t.endsWithSpace)
+        t.backspace()
+        t.backspace()
+        assertEquals("AKO MAGAND", t.text)
+    }
+
+    @Test
+    fun completeWordOnEmptyTranscript() {
+        val t = Transcript()
+        t.completeWord("JAZZ BAND")
+        assertEquals("JAZZ BAND ", t.text)
+    }
 }
