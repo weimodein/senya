@@ -2,8 +2,32 @@
 
 - **Date:** 2026-10-09 (revised: added the motion letters J and Z with a sequence model; added hackathon fit and submission)
 - **Event:** AppBuildersPH Hackathon 2026, theme **Local AI**. Submission deadline **10:00 AM, October 10**, no extensions.
-- **Team:** 2 people (Person A: Android, Person B: Platform + ML)
+- **Team:** 2 people, working remotely from different places (Person A: Android + ML, Person B: web platform; see §0)
 - **Time box:** one 8-hour sprint plus a 1-hour submission block (§9)
+
+## 0. Stack and deployment (revised 2026-10-09 evening — supersedes any conflicting text below)
+
+The team works remotely and will **deploy the web platform**, so the earlier "laptop on the local network" design is replaced. Decisions:
+
+| Area | Decision |
+|---|---|
+| Android app | Kotlin (unchanged) |
+| Web | **PostgreSQL, Express.js, React, Node.js**, deployed to a public HTTPS host (host chosen by Person B) |
+| Machine learning | **Python 3 + TensorFlow/Keras**, exported to TFLite, in a separate trainer under `ml/` |
+| A↔B contract | **Unchanged** (§3): same endpoints, files and formats. Only the server's address changes (an HTTPS URL, set in the app's Settings; the default is changed once the host exists) |
+
+What this changes, section by section:
+
+1. **Landmark extraction runs in the browser, not on the server.** The React page runs `@mediapipe/tasks-vision` (WebAssembly) on the chosen images/videos, and for motion signs runs the §3 segmenter (a JavaScript port). It uploads **only landmarks** (63-float frames, plus timestamps for motion), never the video. This removes Python from the server, keeps uploads tiny, and means the signer's face never leaves their computer. Replaces the "FastAPI BackgroundTask" extraction in §4.2; the `no_hand_frames` and `segments_found` counts are now reported by the client. Thumbnails are optional small JPEG data URLs made in the browser and stored in the row.
+2. **Training runs in a Python "trainer", not in Express.** The deployed server never needs TensorFlow. Clicking **Train** adds a job to a `train_jobs` table. The trainer runs as a worker (`python -m ml.worker`) on a developer's laptop (or a bigger machine) and polls the server for jobs with an admin token. It downloads the training data, trains both models, checks TFLite against Keras (§4.3), then uploads the finished files with `POST /api/models` and reports progress. The trainer follows §4.3 (model definitions, split by upload, augmentation, report) unchanged.
+3. **Model files are stored in PostgreSQL** (`bytea`, they are only tens of KB) and served by Express at the same `/models/v{n}/*` URLs. The host therefore needs no persistent disk, and a redeploy never loses a model.
+4. **Authentication.** A public server must not let strangers upload, train, publish or delete. Every write endpoint requires a single admin token (`Authorization: Bearer …`, kept in an environment variable). Only these stay public, because the app uses them: `GET /api/model/latest` and `GET /models/v{n}/*`.
+5. **Ownership.** The app tasks are mostly done, so **Person A also owns the ML trainer** (`ml/`) and Person B owns the web platform (`platform/`: Express, React, PostgreSQL, deployment). Person B no longer needs Python.
+6. **Shared tests.** `fixtures/segmenter_case.json` is now exercised by **three** implementations: the JavaScript segmenter (web), the Kotlin segmenter (app), and the Python resampling step (trainer).
+7. **Data collection** is remote: both of you upload clips through the deployed web page from wherever you are. This replaces the in-person "record and upload" slot in §7.2.
+8. **Submission wording** (§9): model downloads now need internet (an HTTPS server). Translation itself still works in airplane mode, and the first model is bundled in the APK.
+
+Everything below that mentions FastAPI, SQLite, Python on the server, or a laptop/LAN should be read with these changes applied. The §7.2 schedule rows keep their times; read "FastAPI + SQLite" as "Express + PostgreSQL", and the Python-segmenter/training rows as the JS segmenter (B) and the Python trainer (A).
 
 ## 1. Goal
 
@@ -26,24 +50,24 @@
 - Motion signs beyond the alphabet (everyday words). The platform supports them (`kind = 'motion'`), but we won't collect data for them this sprint.
 - Two-handed signs, and recognizing continuous sentences
 - Text/speech → sign
-- User accounts, authentication, cloud hosting (the platform runs on a laptop on the local network)
+- User accounts (a single admin token protects the platform's write endpoints, see §0)
 - iOS
 - Recording in the browser with a webcam (replaced by uploads)
 
 ## 2. Architecture
 
 ```
-┌────────── Senya web platform (laptop, LAN) ──────────┐        ┌────── Senya Android app ──────┐
-│ Browser: manage signs → upload images/videos/zip     │        │ CameraX → MediaPipe landmarks │
-│ Backend: MediaPipe (Python) extracts landmarks       │        │  ├→ static TFLite classifier  │
-│          static: frames · motion: segments           │        │  └→ MotionSegmenter           │
-│          → SQLite → [Train] → Keras → 2× TFLite      │ models │       → motion TFLite         │
-│          → [Publish] → models + labels + config      │ ─────► │  → PredictionStabilizer       │
-│                                                      │        │  → transcript + offline TTS   │
+┌─────────── Senya web platform (deployed) ────────────┐        ┌────── Senya Android app ──────┐
+│ Browser (React): manage signs → pick files           │        │ CameraX → MediaPipe landmarks │
+│   MediaPipe (web) extracts landmarks/segments        │        │  ├→ static TFLite classifier  │
+│ Express + PostgreSQL: store data, serve models       │ models │  └→ MotionSegmenter           │
+│ Python trainer → Keras → 2× TFLite → [Publish]       │        │       → motion TFLite         │
+│                                                      │        │  → PredictionStabilizer       │
+│                                                      │ ─────► │  → transcript + offline TTS   │
 └──────────────────────────────────────────────────────┘        └───────────────────────────────┘
 ```
 
-All AI inference on the phone runs on the device: MediaPipe hand landmarks, both TFLite classifiers, and text-to-speech. Training runs on the laptop, so no cloud is involved anywhere.
+All AI inference on the phone runs on the device: MediaPipe hand landmarks, both TFLite classifiers, and text-to-speech. Only model distribution touches the network: the deployed server stores the training landmarks and serves finished models, and translation never needs it.
 
 Monorepo layout (a **public GitHub repository**, required for submission):
 ```
@@ -52,7 +76,8 @@ senya/
   CONTRACT.md      # Person B types it, both agree — the A↔B contract (section 3), frozen after hour 0
   fixtures/        # Person B — shared test fixtures + mock server (section 3, items 11–12); A only reads
   android/         # Person A only
-  platform/        # Person B only (FastAPI backend, static HTML pages, training code, platform/README.md)
+  platform/        # Person B only (Express + PostgreSQL backend, React frontend, deployment, platform/README.md)
+  ml/              # Person A only (Python trainer: Keras → TFLite, worker that polls the server, ml/README.md)
   docs/            # this spec
 ```
 
@@ -66,6 +91,7 @@ The plan is built so neither person ever edits the other's files or sits idle wa
 |---|---|---|
 | `android/` | A | Includes the bundled model in `android/app/src/main/assets/model/` (A downloads it from the platform) |
 | `platform/` | B | Includes `platform/README.md`, where B writes the platform facts A needs for the root README |
+| `ml/` | A | Python trainer and worker (§0); starts after the app tasks, uses `fixtures/` for tests |
 | `fixtures/` | B | Dummy models, golden files, segmenter fixture, mock server |
 | `README.md` | A | Built from §9 and `platform/README.md` |
 | `CONTRACT.md` | B types, both agree | Frozen after hour 0 (see below) |
@@ -74,7 +100,7 @@ The plan is built so neither person ever edits the other's files or sits idle wa
 **Git workflow**
 - Both commit straight to `main`, only inside their own paths, and run `git pull --rebase` before every push. With no shared files, rebases never conflict.
 - Commit small and often (at least every hour).
-- `.gitignore` covers the platform's runtime data: the SQLite database, `platform/models/`, thumbnails, and temporary upload files.
+- `.gitignore` covers runtime data and secrets: `.env` files (database URL, admin token), `node_modules/`, build output, and the trainer's downloaded datasets and virtual environment. Never commit the admin token.
 
 **Changing the contract**
 - Raise the change out loud. Both agree, B edits `CONTRACT.md` and bumps the `Contract version: n` line at its top, and both pull.
@@ -137,9 +163,9 @@ Both people agree to this in hour 0 and copy it into `CONTRACT.md`. Changing it 
 
 ## 4. Web platform (Person B)
 
-**Stack:** Python, FastAPI, SQLite, MediaPipe Tasks (Python), TensorFlow/Keras. Frontend is plain HTML + JS (no framework), served by FastAPI.
+**Stack:** Node.js, Express.js, PostgreSQL, React, `@mediapipe/tasks-vision` (in the browser). Deployed to a public HTTPS host. Training is done by the Python trainer in `ml/` (§0), not by this server.
 
-### 4.1 Data model (SQLite)
+### 4.1 Data model (PostgreSQL; `JSON` columns below are `JSONB`, `bytea` for files; add a `train_jobs` table: `id`, `status`, `progress`, `error`, `model_version`, `created_at`, plus a `model_files` table: `version`, `name`, `content` bytea)
 
 | Table | Fields | Notes |
 |---|---|---|
@@ -150,7 +176,7 @@ Both people agree to this in hour 0 and copy it into `CONTRACT.md`. Changing it 
 | `models` | `version`, `labels` (JSON), `val_accuracy`, `per_class_report` (JSON), `motion_labels` (JSON, nullable), `motion_val_accuracy`, `motion_report` (JSON), `is_current` (bool), `created_at` | One row per training run; at most one row has `is_current = true` |
 
 ### 4.2 Upload processing
-- Runs as a FastAPI `BackgroundTask`. The client checks upload status for progress.
+- Runs **in the browser** (§0): the React page extracts landmarks (and, for motion signs, segments) and uploads only landmark JSON. The server validates it (63 floats per frame, sane counts) and inserts the rows. Progress is shown by the page itself.
 - **Static signs:**
   - **Image** → 1 sample if a hand is detected.
   - **Video** → one frame every 0.1 s, skipping the first and last 0.5 s; 1 sample per frame with a hand.
@@ -161,8 +187,8 @@ Both people agree to this in hour 0 and copy it into `CONTRACT.md`. Changing it 
 - Frames with no hand detected are counted in `no_hand_frames`, not stored.
 - **Zip import (stretch):** one folder per label (`A/…`, `B/…`); creates missing signs as static; each file is processed as above.
 
-### 4.3 Training (`POST /api/train`)
-Only one training job runs at a time; a second request returns 409. One run trains both models and produces one version.
+### 4.3 Training (`POST /api/train`, executed by the Python trainer in `ml/`)
+`POST /api/train` queues a job; the trainer worker picks it up. Only one training job runs at a time; a second request returns 409. One run trains both models and produces one version.
 
 **Static model**
 1. Include static signs with **≥ 30 samples**. Report the signs that were skipped.
@@ -290,7 +316,7 @@ CameraX frame → HandLandmarker → (t_ms, 63 raw floats | no hand)
 So that hour 0 is spent on decisions, not installs:
 - **Both:** GitHub accounts with access to the repo; agree on a team chat for "pushed X" messages.
 - **A:** Android Studio installed; `mediapipe-samples` hand landmarker app built and running on the demo phone once; `hand_landmarker.task` downloaded; offline TTS voice (Filipino if available, plus English) downloaded on the demo phone.
-- **B:** Python environment with FastAPI, MediaPipe, and TensorFlow installed and importable (TensorFlow is the slow install); laptop and phone confirmed to reach each other on the same Wi-Fi.
+- **B:** Node.js, a PostgreSQL database (local or hosted), and a hosting account chosen and ready to deploy to (§0). **A:** Python with TensorFlow and MediaPipe installed and importable for `ml/` (TensorFlow is the slow install).
 
 ### 7.2 Schedule
 
@@ -314,7 +340,7 @@ Each column below only touches its owner's paths (§2.1). **Bold** items in a ce
 | 6:00–7:00 | `ModelRepository` against the mock server, then switch to the real server URL; network config, settings | Train & Publish page with both reports; motion sign detail (`start_shapes`, sequence thumbnails); write platform facts into `platform/README.md` |
 | 7:00–7:30 | **Both: end-to-end** (sync point) — new sign → train → publish → phone update → offline; tune `motion_config` thresholds and the `I→J` window; more data for the most-confused letters | |
 | 7:30–7:45 | **Feature freeze**, bug fixes only, each in their own paths | |
-| 7:45–8:00 | Release APK, demo rehearsal (A); laptop + phone on the same network (B) | |
+| 7:45–8:00 | Release APK, demo rehearsal (A); deployed server reachable from the phone over HTTPS (B) | |
 | 8:00–9:00 | **Submission block (§9).** A: finish `README.md`, submit the form. B: record and edit the demo video, post it on X/LinkedIn, send A the URL. **Must finish before 10:00 AM Oct 10.** | |
 
 **Sync points** (both stop and work together): 0:00–0:30 contract, 2:30–3:00 recording, the 5:00 checkpoint, 7:00–7:30 end-to-end, and the 8:00 submission split. Everywhere else, neither of you needs anything from the other within the hour.
@@ -355,6 +381,9 @@ Each person cuts from their own list, so a cut never changes the other person's 
 | Merge conflicts | One owner per path (§2.1); `CONTRACT.md` frozen after hour 0; `pull --rebase` before every push |
 | One person blocked waiting for the other | Stand-ins for every handoff (§2.1); mock server and dummy models pushed by 1:00; late handoffs never stop the receiver |
 | Kotlin segmenter copies a bug from the Python one | A builds from the written rules in §3, not from B's code; the shared fixture catches differences |
+| Public server abused (uploads, publish, delete) | Admin token on every write endpoint; only the two read endpoints the app uses are public (§0) |
+| Deployment not ready or down during the demo | Deploy a minimal server with the dummy models early; the APK bundles a model and translates offline; keep a local copy of the platform as backup |
+| Browser MediaPipe landmarks differ slightly from the phone's | Same model, same normalized landmarks; mirror and rotation augmentation; golden test on real device clips; check a few uploaded clips against the app's output |
 | Missing the 10:00 AM deadline | Submission block is never cut; README disclosures drafted at 6:00; record the demo video as soon as v2 works, re-record later only if time allows |
 
 ## 9. Hackathon submission
@@ -376,10 +405,10 @@ Done in the 1-hour block after the sprint. Everything below goes into `README.md
 - **X / LinkedIn video URL:** post the same video.
 - **What runs locally:**
   - On the phone: hand landmark detection (MediaPipe), the static and motion classifiers (TFLite), the stabilizer, and text-to-speech.
-  - On the laptop: landmark extraction from uploads, training, and model publishing.
+  - In the browser and on the trainer's computer: landmark extraction from uploaded clips (browser), and training (Python trainer).
 - **What requires internet:**
   - Nothing at translation time.
-  - The local network (no internet) for downloading new model versions from the laptop.
+  - Downloading new model versions from the deployed server (HTTPS). The app works without it using its bundled model.
   - Internet once, beforehand, to download the offline TTS voice and the app's dependencies.
 
 **The disclosures**
@@ -387,8 +416,8 @@ Done in the 1-hour block after the sprint. Everything below goes into `README.md
   - MediaPipe Hand Landmarker (`hand_landmarker.task`, Google, pre-trained)
   - Senya's own static classifier (MLP) and motion classifier (1D CNN), trained during the sprint on data the team recorded
   - Android's built-in offline text-to-speech voices
-- **Technologies and frameworks:** Kotlin, CameraX, MediaPipe Tasks, TensorFlow Lite, Python, FastAPI, SQLite, TensorFlow/Keras.
-- **APIs and cloud services:** none.
+- **Technologies and frameworks:** Kotlin, CameraX, MediaPipe Tasks, TensorFlow Lite, Node.js, Express.js, React, PostgreSQL, Python, TensorFlow/Keras.
+- **APIs and cloud services:** the hosting provider and managed PostgreSQL for the web platform (name them here once chosen); no AI API calls anywhere.
 - **Existing code and assets:** `google-ai-edge/mediapipe-samples` hand landmarker Android example (Apache 2.0) as the app's starting point; the FSL alphabet reference used to confirm the letters (cite it).
 - **AI development tools:** Claude Code (design spec and coding help); list any others used.
 

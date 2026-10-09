@@ -22,17 +22,17 @@ AppBuildersPH Hackathon 2026 · Theme: Local AI
 
 ## What runs locally
 - **On the phone:** hand landmark detection (MediaPipe), the static and motion sign classifiers (TFLite), the prediction stabilizer, and text-to-speech.
-- **On the laptop:** landmark extraction from uploads, training, and model publishing.
+- **In the browser and on the trainer's computer:** landmark extraction from uploaded clips (browser) and training (Python trainer).
 
 ## What requires internet
 - Nothing at translation time.
-- The local network (no internet) for downloading new model versions from the laptop.
+- Downloading new model versions from the deployed server (HTTPS). The app works without it using its bundled model.
 - Internet once, beforehand, to download the offline TTS voice and the app's dependencies.
 
 ## Disclosures
 - **Models used:** MediaPipe Hand Landmarker (`hand_landmarker.task`, Google, pre-trained); Senya's own static classifier (MLP) and motion classifier (1D CNN), trained during the sprint on data the team recorded; Android's built-in offline text-to-speech voices.
-- **Technologies and frameworks:** Kotlin, CameraX, MediaPipe Tasks, TensorFlow Lite, Python, FastAPI, SQLite, TensorFlow/Keras.
-- **APIs and cloud services:** none.
+- **Technologies and frameworks:** Kotlin, CameraX, MediaPipe Tasks, TensorFlow Lite, Node.js, Express.js, React, PostgreSQL, Python, TensorFlow/Keras.
+- **APIs and cloud services:** TODO — name the hosting provider and managed PostgreSQL once chosen; no AI API calls anywhere.
 - **Existing code and assets:** `google-ai-edge/mediapipe-samples` hand landmarker Android example (Apache 2.0) as the app's starting point — see `android/README.md`; FSL alphabet reference: TODO (cite it).
 - **AI development tools:** Claude Code (design spec, repo setup, coding help); TODO: list any others used.
 
@@ -40,7 +40,8 @@ AppBuildersPH Hackathon 2026 · Theme: Local AI
 | Path | Owner | What |
 |---|---|---|
 | `android/` | Person A | Android app |
-| `platform/` | Person B | Web platform: FastAPI backend, pages, training |
+| `platform/` | Person B | Web platform: Express + PostgreSQL backend, React frontend, deployment |
+| `ml/` | Person A | Python trainer (Keras → TFLite) and worker |
 | `fixtures/` | Person B | Shared test fixtures + mock server |
 | `CONTRACT.md` | Both agree, B edits | The app ↔ platform contract |
 | `docs/` | — | Design spec |
@@ -48,7 +49,7 @@ AppBuildersPH Hackathon 2026 · Theme: Local AI
 ## Running it
 - Android app: build it (see `android/README.md`) or install `app-release.apk` from the GitHub release.
 - Platform: see `platform/README.md`.
-- Phone and laptop must be on the same Wi-Fi for model updates; translation itself works in airplane mode.
+- Model updates need the internet (the deployed server); translation itself works in airplane mode.
 
 ## License
 Apache License 2.0 — see `LICENSE` and `NOTICE`. The Android app started from the MediaPipe hand landmarker sample (also Apache 2.0); see `android/README.md`.
