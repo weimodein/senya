@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import useSign from "../hooks/useSign.js";
-import { Badge, Button, Card, ErrorText, Input, Loading, PageTitle, ProgressBar, formatDate } from "../components/ui.jsx";
+import { Badge, Button, Card, ConfirmDialog, ErrorText, Input, Loading, PageTitle, ProgressBar, formatDate } from "../components/ui.jsx";
 
-const resultText = (kind, up) =>
-  kind === "static" ? `${up.samples_added} samples` : `${up.segments_found} movements`;
+const resultText = (kind, upload) => kind === "static" ? `${upload.samples_added} samples` : `${upload.segments_found} movements`;
 
 const STATUS_TEXT = {
   waiting: "Waiting",
@@ -15,43 +14,55 @@ const STATUS_TEXT = {
 function UploadBox({ sign, onFiles }) {
   const [dragging, setDragging] = useState(false);
   const accept = sign.kind === "motion" ? "video/*" : "video/*,image/*";
+
   return (
     <label
-      onDragOver={(e) => (e.preventDefault(), setDragging(true))}
+      onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
       onDragLeave={() => setDragging(false)}
-      onDrop={(e) => (e.preventDefault(), setDragging(false), onFiles(e.dataTransfer.files))}
-      className={`block cursor-pointer rounded-lg border-2 border-dashed p-8 text-center ${dragging ? "border-blue-500 bg-blue-50" : "border-gray-300 bg-white"}`}
+      onDrop={(event) => { event.preventDefault(); setDragging(false); onFiles(event.dataTransfer.files); }}
+      className={`flex min-h-[250px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-10 text-center transition ${dragging ? "border-[#32669A] bg-[#F2F8FF]" : "border-[#C7D5E7] bg-[#FBFCFE] hover:border-[#8BB8E8] hover:bg-[#F7FBFF]"}`}
     >
-      <p className="font-medium">Drop clips here, or click to choose</p>
-      <p className="mt-1 text-sm text-gray-500">
+      <span className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[#EAF3FF] text-2xl text-[#32669A]" aria-hidden="true">↑</span>
+      <span className="text-base font-bold text-[#202630]">Drop clips here, or <span className="text-[#32669A] underline underline-offset-4">Choose files</span></span>
+      <span className="mt-3 max-w-md text-sm leading-6 text-[#636B77]">
         {sign.kind === "static"
-          ? "Raise your hand, hold the letter still for about a second, lower it. Only the held part is used."
+          ? "Raise your hand, hold A still for about a second, then lower it. Only the held portion is used."
           : "Repeat the movement a few times with a pause in between. Each repeat becomes one sample."}
-      </p>
-      <input type="file" accept={accept} multiple hidden onChange={(e) => (onFiles(e.target.files), (e.target.value = ""))} />
+      </span>
+      <input type="file" accept={accept} multiple hidden onChange={(event) => { onFiles(event.target.files); event.target.value = ""; }} />
     </label>
+  );
+}
+
+function Guidance({ sign }) {
+  return (
+    <Card eyebrow="Recording guidance" title={sign.kind === "static" ? "Keep the frame calm" : "Make each movement clear"} className="h-full">
+      <div className="space-y-4 text-sm leading-6 text-[#636B77]">
+        <p>{sign.kind === "static" ? "Raise your hand, hold the sign still for about a second, then lower it. Only the held portion is used." : "Repeat the movement with a pause between repetitions so each segment can be identified."}</p>
+        <p>Keep your head, torso, and signing hand in frame.</p>
+        <div className="rounded-xl bg-[#F6F7F9] px-4 py-3 text-xs leading-5 text-[#636B77]">
+          Videos are processed for hand landmarks. Original clips are not retained by the admin panel.
+        </div>
+      </div>
+    </Card>
   );
 }
 
 function QueueList({ queue, kind, onClear, uploading }) {
   if (queue.length === 0) return null;
   return (
-    <Card title="Uploads this session" className="mt-3">
-      <ul className="divide-y divide-gray-100 text-sm">
+    <Card title="Uploads this session" className="mt-4">
+      <ul className="divide-y divide-[#E6EBF1] text-sm">
         {queue.map((item) => (
-          <li key={item.key} className="flex items-center justify-between gap-4 py-2">
-            <span className="truncate">{item.file.name}</span>
+          <li key={item.key} className="flex items-center justify-between gap-4 py-3">
+            <span className="truncate font-medium text-[#364152]">{item.file.name}</span>
             {item.status === "done" && <Badge color="green">✓ {resultText(kind, item.result)}</Badge>}
-            {item.status === "failed" && <Badge color="red">✗ {item.error}</Badge>}
+            {item.status === "failed" && <Badge color="red">× {item.error}</Badge>}
             {STATUS_TEXT[item.status] && <Badge color="yellow">{STATUS_TEXT[item.status]}</Badge>}
           </li>
         ))}
       </ul>
-      {!uploading && (
-        <Button className="mt-2" onClick={onClear}>
-          Clear finished
-        </Button>
-      )}
+      {!uploading && <Button className="mt-4" onClick={onClear}>Clear finished</Button>}
     </Card>
   );
 }
@@ -59,13 +70,14 @@ function QueueList({ queue, kind, onClear, uploading }) {
 function StartShapesForm({ sign, onSave }) {
   const [value, setValue] = useState((sign.start_shapes || []).join(" "));
   const [error, setError] = useState("");
+
   return (
     <Card title="Starts from letter" className="mb-6">
-      <form onSubmit={async (e) => (e.preventDefault(), setError(await onSave(value)))} className="flex items-end gap-2">
-        <Input value={value} onChange={(e) => setValue(e.target.value)} placeholder="I" className="w-36" />
+      <form onSubmit={async (event) => { event.preventDefault(); setError(await onSave(value)); }} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <Input value={value} onChange={(event) => setValue(event.target.value)} placeholder="I" className="w-full sm:w-48" />
         <Button type="submit">Save</Button>
       </form>
-      {error && <div className="mt-2"><ErrorText>{error}</ErrorText></div>}
+      {error && <div className="mt-3"><ErrorText>{error}</ErrorText></div>}
     </Card>
   );
 }
@@ -75,90 +87,111 @@ export default function SignDetail() {
   const navigate = useNavigate();
   const s = useSign(id);
   const [actionError, setActionError] = useState("");
+  const [pendingDelete, setPendingDelete] = useState(null);
 
   if (s.error) return <ErrorText>{s.error}</ErrorText>;
   if (!s.sign) return <Loading />;
+
   const { sign } = s;
   const isNone = sign.label === "_none";
+  const readiness = Math.min(1, sign.sample_count / sign.target);
 
-  const deleteUpload = async (up) => {
-    if (window.confirm(`Delete ${up.filename} and its ${resultText(sign.kind, up)}?`)) setActionError(await s.deleteUpload(up.id));
-  };
-  const deleteSign = async () => {
-    if (!window.confirm(`Delete ${sign.label} and all its samples?`)) return;
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const pending = pendingDelete;
+    setPendingDelete(null);
+    if (pending.type === "upload") {
+      setActionError(await s.deleteUpload(pending.upload.id));
+      return;
+    }
     const err = await s.deleteSign();
     err ? setActionError(err) : navigate("/");
   };
 
   return (
     <>
-      <Link to="/" className="text-sm text-blue-600 hover:underline">
+      <Link to="/" className="mb-5 inline-flex min-h-10 items-center text-sm font-semibold text-[#32669A] hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8BB8E8]/35">
         ← All signs
       </Link>
       <PageTitle
-        title={isNone ? "Not a sign (_none)" : `Sign ${sign.label}`}
-        subtitle={`${sign.kind === "static" ? "Static" : "Motion"} · ${sign.sample_count} of ${sign.target} ${sign.kind === "static" ? "samples" : "movements"} needed${sign.ready ? " · ready to train" : ""}`}
+        eyebrow={`Sign detail · ${isNone ? "Not a sign" : sign.label}`}
+        title={isNone ? "Not a sign" : `Sign ${sign.label}`}
+        subtitle={`${sign.kind === "static" ? "Static" : "Motion"} · ${sign.sample_count} samples · target ${sign.target} · ${sign.ready ? "Ready to train" : "Needs more data"}`}
       />
-      <div className="mb-6 max-w-md">
-        <ProgressBar value={sign.sample_count / sign.target} color={sign.ready ? "green" : "yellow"} />
+
+      <div className="mb-7 flex max-w-2xl items-center gap-3">
+        <ProgressBar value={readiness} color={sign.ready ? "green" : "gray"} />
+        <span className="shrink-0 text-xs font-semibold text-[#636B77]">{Math.round(readiness * 100)}%</span>
+        {sign.ready && <Badge color="green">Ready to train</Badge>}
       </div>
       <ErrorText>{actionError}</ErrorText>
 
-      <div className="mb-6">
-        <UploadBox sign={sign} onFiles={s.addFiles} />
-        <QueueList queue={s.queue} kind={sign.kind} onClear={s.clearQueue} uploading={s.uploading} />
+      <div className="mt-7 grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]">
+        <section>
+          <Card eyebrow="Add samples" title="Upload clips" className="h-full">
+            <UploadBox sign={sign} onFiles={s.addFiles} />
+          </Card>
+          <QueueList queue={s.queue} kind={sign.kind} onClear={s.clearQueue} uploading={s.uploading} />
+        </section>
+        <Guidance sign={sign} />
       </div>
 
       {s.previews.length > 0 && (
-        <Card title="Preview frames" className="mb-6">
-          <div className="flex flex-wrap gap-2">
-            {s.previews.map((p) => (
-              <img key={p.id} src={p.thumb} alt="" className="h-16 w-16 rounded object-cover" />
+        <Card title="Preview frames" className="mt-7">
+          <div className="flex gap-3 overflow-x-auto pb-1">
+            {s.previews.slice(0, 5).map((preview) => (
+              <img key={preview.id} src={preview.thumb} alt="" className="h-20 w-24 shrink-0 rounded-xl border border-[#DDE4ED] object-cover" />
             ))}
           </div>
         </Card>
       )}
 
-      <Card title="Uploaded clips" className="mb-6">
+      <Card title="Uploaded clips" className="mt-7">
         {s.uploads.length === 0 ? (
-          <p className="text-sm text-gray-500">No clips yet. Videos are never stored, only the hand landmarks and small preview frames.</p>
+          <p className="text-sm text-[#636B77]">No clips yet. Add a recording above to collect samples for this sign.</p>
         ) : (
-          <table className="w-full text-left text-sm">
-            <thead className="text-gray-500">
-              <tr>
-                <th className="py-1">File</th>
-                <th>Result</th>
-                <th>Frames without a hand</th>
-                <th>Added</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {s.uploads.map((up) => (
-                <tr key={up.id} className="border-t border-gray-100">
-                  <td className="py-2">{up.filename}</td>
-                  <td>{resultText(sign.kind, up)}</td>
-                  <td>{up.no_hand_frames}</td>
-                  <td>{formatDate(up.created_at)}</td>
-                  <td className="text-right">
-                    <Button variant="danger" onClick={() => deleteUpload(up)}>
-                      Delete
-                    </Button>
-                  </td>
+          <div className="table-scroll">
+            <table className="refined-table">
+              <thead>
+                <tr>
+                  <th>File</th>
+                  <th>Samples added</th>
+                  <th>Frames without a hand</th>
+                  <th>Added</th>
+                  <th className="text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {s.uploads.map((upload) => (
+                  <tr key={upload.id}>
+                    <td className="font-semibold">{upload.filename}</td>
+                    <td>{resultText(sign.kind, upload)}</td>
+                    <td>{upload.no_hand_frames}</td>
+                    <td>{formatDate(upload.created_at)}</td>
+                    <td className="text-right"><Button variant="quiet" onClick={() => setPendingDelete({ type: "upload", upload })}>Delete</Button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
 
       {sign.kind === "motion" && !isNone && <StartShapesForm sign={sign} onSave={s.saveStartShapes} />}
 
       {!isNone && (
-        <Button variant="danger" onClick={deleteSign} disabled={s.uploading}>
-          Delete sign {sign.label}
-        </Button>
+        <div className="mt-7 border-t border-[#DDE4ED] pt-6">
+          <Button variant="danger" onClick={() => setPendingDelete({ type: "sign" })} disabled={s.uploading}>Delete sign {sign.label}</Button>
+        </div>
       )}
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        title={pendingDelete?.type === "upload" ? "Delete uploaded clip?" : `Delete sign ${sign.label}?`}
+        description={pendingDelete?.type === "upload" ? `Remove ${pendingDelete.upload.filename} and its extracted samples?` : "This removes the sign and all of its samples. This cannot be undone."}
+        confirmLabel={pendingDelete?.type === "upload" ? "Delete clip" : "Delete sign"}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </>
   );
 }

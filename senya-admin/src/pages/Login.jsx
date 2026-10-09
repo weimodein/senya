@@ -27,9 +27,9 @@ function StatusIcon({ locked }) {
 function Workflow() {
   const steps = ["Upload", "Train", "Review", "Publish"];
   return (
-    <div className="grid grid-cols-4 items-center gap-2 text-xs font-medium text-slate-500 sm:gap-4">
+    <div className="grid min-w-0 grid-cols-2 items-center gap-2 text-xs font-medium text-slate-500 sm:grid-cols-4 sm:gap-4">
       {steps.map((step, index) => (
-        <div className="flex items-center gap-2 sm:gap-4" key={step}>
+        <div className="flex min-w-0 items-center gap-2 sm:gap-4" key={step}>
           <span>{step}</span>
           {index < steps.length - 1 && <span aria-hidden="true" className="text-base font-normal text-slate-400">→</span>}
         </div>
@@ -69,20 +69,20 @@ export default function Login() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-100 p-4 text-slate-950 sm:p-6 lg:p-8">
-      <div className="grid w-full max-w-5xl overflow-hidden rounded-xl border border-slate-300 bg-white shadow-lg lg:grid-cols-2">
-        <section className="flex min-h-[460px] flex-col justify-between bg-slate-50 px-7 py-8 sm:px-10 sm:py-10 lg:min-h-[590px]" aria-labelledby="brand-title">
+    <main className="flex min-h-screen w-full max-w-full items-start justify-center overflow-x-hidden bg-slate-100 p-4 text-slate-950 sm:p-6 lg:items-center lg:p-8">
+      <div className="my-0 grid min-w-0 w-full max-w-full grid-cols-1 overflow-hidden rounded-xl border border-slate-300 bg-white shadow-lg sm:my-2 sm:max-w-5xl lg:my-0 lg:grid-cols-2">
+        <section className="flex min-w-0 min-h-[460px] flex-col justify-between bg-slate-50 px-7 py-8 sm:px-10 sm:py-10 lg:min-h-[590px]" aria-labelledby="brand-title">
           <img src="/brand/senya-logo-primary.svg" alt="SENYA" className="h-10 w-auto sm:h-11" />
 
           <div className="my-12 max-w-md lg:my-0">
-            <h1 id="brand-title" className="max-w-sm text-4xl font-bold leading-[1.05] tracking-tight text-slate-950 sm:text-5xl">Better models. Clearer signs.</h1>
-            <p className="mt-5 max-w-sm text-lg leading-7 text-slate-500">Train static and motion models, review accuracy, and publish updates for the SENYA app.</p>
+            <h1 id="brand-title" className="w-full max-w-sm text-4xl font-bold leading-[1.05] tracking-tight text-slate-950 sm:text-5xl"><span>Better models. </span><span className="block">Clearer signs.</span></h1>
+            <p className="mt-5 max-w-[18rem] break-words text-lg leading-7 text-slate-500 sm:max-w-sm">Train static and motion models, review accuracy, and publish updates for the SENYA app.</p>
           </div>
 
           <Workflow />
         </section>
 
-        <section className="flex min-h-[460px] flex-col bg-white px-7 py-8 sm:px-10 sm:py-10 lg:min-h-[590px] lg:px-14" aria-labelledby="login-title">
+        <section className="flex min-w-0 min-h-[460px] flex-col bg-white px-7 py-8 sm:px-10 sm:py-10 lg:min-h-[590px] lg:px-14" aria-labelledby="login-title">
           <p className="text-right text-xs font-medium text-slate-500">Admin platform</p>
           <div className="mx-auto flex w-full max-w-xs flex-1 flex-col justify-center py-8">
             <p className="text-xs font-medium text-slate-500">Team access</p>

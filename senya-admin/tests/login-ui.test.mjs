@@ -43,7 +43,9 @@ test("login presents the accessible SENYA admin sign-in screen", async (t) => {
   assert.match(stdout, /Admin platform/);
   assert.match(stdout, /src="\/brand\/senya-logo-primary\.svg"/);
   assert.match(stdout, /alt="SENYA"/);
-  assert.match(stdout, /Better models\. Clearer signs\./);
+  assert.match(stdout, /href="\/brand\/senya-brand-mark\.svg"/);
+  assert.match(stdout, /Better models\./);
+  assert.match(stdout, /Clearer signs\./);
   assert.match(stdout, /Train static and motion models, review accuracy, and publish updates for the SENYA app\./);
   assert.match(stdout, /Upload/);
   assert.match(stdout, /Train/);
