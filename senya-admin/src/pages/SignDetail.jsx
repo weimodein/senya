@@ -27,7 +27,9 @@ function UploadBox({ sign, onFiles }) {
       <span className="mt-3 max-w-md text-sm leading-6 text-[#636B77]">
         {sign.kind === "static"
           ? "Raise your hand, hold A still for about a second, then lower it. Only the held portion is used."
-          : "Repeat the movement a few times with a pause in between. Each repeat becomes one sample."}
+          : sign.label === "_none"
+            ? "Ordinary hand movements that are not signs, with a pause between them. Each movement becomes one sample."
+            : "Raise your hand, sign it once, lower it. One clip = one sample; the raise and lower also teach _none."}
       </span>
       <input type="file" accept={accept} multiple hidden onChange={(event) => { onFiles(event.target.files); event.target.value = ""; }} />
     </label>
