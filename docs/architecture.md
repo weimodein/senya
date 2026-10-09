@@ -184,7 +184,7 @@ Base URL: `http://localhost:8000` locally. For a phone, run `adb reverse tcp:800
 **Models**
 - `GET /api/models` → `[{id, version, status, progress, message, error, labels, motion_labels, val_accuracy, motion_val_accuracy, created_at, trained_at, deployed_at}]`, newest first
 - `GET /api/models/:id` → the same fields plus `report`
-- `POST /api/models/train` → `202 {model}`. `409` if a run is already training. `400` unless at least 2 static signs have 30+ samples each. The trainer itself skips motion signs without enough data (3+ sequences from 3+ uploads; `_none` 6+).
+- `POST /api/models/train` → `202 {model}`. `409` if a run is already training. `400` unless at least 2 static signs have 30+ samples each. The trainer itself skips motion signs without enough data (3+ sequences from 2+ uploads; `_none` 4+).
 - `POST /api/models/:id/deploy` → `200`; only for a `trained` or `deployed` row
 - `DELETE /api/models/:id` → `204`; not allowed for the deployed row
 

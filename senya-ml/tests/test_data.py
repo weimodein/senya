@@ -60,7 +60,15 @@ def test_three_clips_activate_a_motion_sign_and_six_none_sequences_are_enough():
     assert ds.motion_labels == ["_none", "J", "Z"]
 
 
-def test_two_clips_are_not_enough_for_a_motion_sign():
-    ds = data.load_export(data.synthetic_export(seed=0, n_uploads=2, seq_per_upload=3))
+def test_one_upload_is_not_enough_for_a_motion_sign():
+    ds = data.load_export(data.synthetic_export(seed=0, n_uploads=1, seq_per_upload=6))
     assert "J" not in ds.motion_labels
     assert any(s.startswith("J:") for s in ds.skipped)
+
+
+def test_four_none_sequences_are_enough_so_three_clips_activate_a_motion_sign():
+    ex = data.synthetic_export(seed=0, n_uploads=3, seq_per_upload=1)
+    by = {s["label"]: s for s in ex["signs"]}
+    by["_none"]["uploads"] = [{"id": u["id"], "sequences": u["sequences"][:1] * n}
+                              for u, n in zip(by["J"]["uploads"], (2, 1, 1))]
+    assert data.load_export(ex).motion_labels == ["_none", "J", "Z"]

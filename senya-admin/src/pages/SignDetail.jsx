@@ -3,7 +3,11 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import useSign from "../hooks/useSign.js";
 import { Badge, Button, Card, ConfirmDialog, ErrorText, Input, Loading, PageTitle, ProgressBar, formatDate } from "../components/ui.jsx";
 
-const resultText = (kind, upload) => kind === "static" ? `${upload.samples_added} samples` : `${upload.segments_found} movements`;
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const resultText = (kind, upload) =>
+  kind === "static"
+    ? plural(upload.samples_added, "sample")
+    : plural(upload.segments_found, "movement") + (upload.none_added ? ` (+${upload.none_added} for _none)` : "");
 
 const STATUS_TEXT = {
   waiting: "Waiting",
@@ -40,7 +44,7 @@ function Guidance({ sign }) {
   return (
     <Card eyebrow="Recording guidance" title={sign.kind === "static" ? "Keep the frame calm" : "Make each movement clear"}>
       <div className="space-y-4 text-sm leading-6 text-[#636B77]">
-        <p>{sign.kind === "static" ? "Raise your hand, hold the sign still for about a second, then lower it. Only the held portion is used." : "Repeat the movement with a pause between repetitions so each segment can be identified."}</p>
+        <p>{sign.kind === "static" ? "Raise your hand, hold the sign still for about a second, then lower it. Only the held portion is used." : sign.label === "_none" ? "Repeat the movement with a pause between repetitions so each segment can be identified." : "Raise your hand, sign it once, then lower it. One clip is one sample; the raise and lower also teach _none."}</p>
         <p>Keep your head, torso, and signing hand in frame.</p>
         <div className="rounded-xl bg-[#F6F7F9] px-4 py-3 text-xs leading-5 text-[#636B77]">
           Videos are processed for hand landmarks. Original clips are not retained by the admin panel.

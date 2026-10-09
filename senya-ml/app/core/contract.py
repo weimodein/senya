@@ -21,8 +21,9 @@ MOTION_CONFIG_DEFAULT = {
 }
 
 # Training thresholds (spec §4.3). Motion clips are single takes (one movement each, raise and lower cut away
-# into _none), so 3 clips activate a motion sign; 3 clips also yield about 6 _none cuts.
+# into _none), so 3 clips activate a motion sign; real J clips give 1-2 _none cuts each, so 3 clips give 4+ nearly
+# always. Older repeat-style data (many sequences per upload) still counts from 2 uploads.
 MIN_STATIC_SAMPLES = 30
 MIN_MOTION_SEQUENCES = 3
-MIN_MOTION_UPLOADS = 3
-MIN_NONE_SEQUENCES = 6
+MIN_MOTION_UPLOADS = 2
+MIN_NONE_SEQUENCES = 4

@@ -106,3 +106,14 @@ def test_single_from_video_explains_a_clip_without_a_movement():
     frames = clip([AWAY, RAISE, ("hold", 30, TOP, TOP), ("lower", 8, TOP, LOW_L), AWAY])
     with pytest.raises(ExtractionError, match="sign once"):
         _single_from_video(frames)
+
+
+def test_a_hand_resting_in_view_before_the_raise_does_not_leak_into_the_sign():
+    rest = ("rest", 30, LOW_L, LOW_L)
+    frames = clip([rest, RAISE, HOLD, MOVE, SETTLE, LOWER, AWAY])
+    take = find_single_take(frames)
+    assert take is not None
+    got = phases_in(take.sign, frames)
+    assert "raise" not in got and "rest" not in got and got.count("move") == 12
+    assert len(take.rest) == 2
+    assert phases_in(take.rest[0], frames).count("raise") == 8

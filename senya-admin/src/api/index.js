@@ -39,4 +39,4 @@ export const models = {
 // How much data a sign needs before it can be trained (spec §4.3). Motion signs: one movement per clip, 3 clips;
 // _none also fills up from the raise and lower of those clips.
 export const MIN_STATIC_SAMPLES = 30;
-export const targetFor = (sign) => (sign.kind === "static" ? 30 : sign.label === "_none" ? 6 : 3);
+export const targetFor = (sign) => (sign.kind === "static" ? 30 : sign.label === "_none" ? 4 : 3);

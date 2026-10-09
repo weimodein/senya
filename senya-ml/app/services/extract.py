@@ -258,7 +258,11 @@ def find_single_take(frames: list) -> Optional[SingleTake]:
     def fast(i):
         return speeds[i] is not None and speeds[i] > c["start_speed"]
 
-    raise_end = first
+    # A hand resting in view before the raise is not part of it: skip the leading still frames first.
+    rise_start = first
+    while rise_start < last and (speeds[rise_start] is None or still(rise_start)):
+        rise_start += 1
+    raise_end = rise_start
     while raise_end < last and (drop[raise_end] is None or -drop[raise_end] > RAISE_SPEED):
         raise_end += 1
     lower_start = last
@@ -285,8 +289,7 @@ def find_single_take(frames: list) -> Optional[SingleTake]:
     sign = _span(frames, t(start) - c["pad_ms"], t(end))
     if sign is None:
         return None
-    moving = next((i for i in range(first, raise_end + 1) if speeds[i] is not None), raise_end)
-    rest = [s for s in (_span(frames, t(moving) - c["pad_ms"], t(raise_end)),
+    rest = [s for s in (_span(frames, t(rise_start) - c["pad_ms"], t(raise_end)),
                         _span(frames, t(lower_start) - c["pad_ms"], t(last))) if s]
     return SingleTake(sign, rest)
 
