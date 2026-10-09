@@ -142,7 +142,7 @@
 
     <style name="SenyaSuggestion">
         <item name="android:layout_width">0dp</item>
-        <item name="android:layout_height">44dp</item>
+        <item name="android:layout_height">36dp</item>
         <item name="android:layout_weight">1</item>
         <item name="android:background">@drawable/bg_suggestion</item>
         <item name="android:gravity">center</item>
@@ -151,6 +151,6 @@
         <item name="android:paddingStart">8dp</item>
         <item name="android:paddingEnd">8dp</item>
         <item name="android:textColor">@color/senya_ink</item>
-        <item name="android:textSize">16sp</item>
+        <item name="android:textSize">15sp</item>
     </style>
 </resources>

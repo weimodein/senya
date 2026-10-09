@@ -245,7 +245,7 @@
     <LinearLayout
         android:id="@+id/status_row"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
+        android:layout_height="44dp"
         android:background="@color/senya_background"
         android:gravity="center_vertical"
         android:orientation="horizontal"
@@ -291,10 +291,10 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_margin="12dp"
+        android:layout_margin="10dp"
         android:background="@drawable/bg_card"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:padding="12dp">
 
         <TextView
             style="@style/SenyaCaption"
@@ -305,30 +305,30 @@
 
         <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="88dp">
+            android:layout_height="60dp">
 
         <TextView
             android:id="@+id/transcript_placeholder"
             android:layout_width="match_parent"
-            android:layout_height="88dp"
+            android:layout_height="60dp"
             android:fontFamily="sans-serif-black"
             android:gravity="bottom|start"
             android:maxLines="2"
             android:text="@string/transcript_placeholder"
             android:textColor="@color/senya_muted"
-            android:textSize="22sp"
+            android:textSize="20sp"
             android:textStyle="bold" />
 
         <TextView
             android:id="@+id/transcript"
             android:layout_width="match_parent"
-            android:layout_height="88dp"
+            android:layout_height="60dp"
             android:gravity="bottom|start"
             android:maxLines="2"
             android:textColor="@color/senya_ink"
             android:fontFamily="sans-serif-black"
             android:textStyle="bold"
-            app:autoSizeMaxTextSize="56sp"
+            app:autoSizeMaxTextSize="44sp"
             app:autoSizeMinTextSize="22sp"
             app:autoSizeTextType="uniform" />
 
@@ -338,14 +338,14 @@
             android:id="@+id/suggestions"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="8dp"
             android:orientation="horizontal">
 
             <TextView
                 android:id="@+id/suggestion_1"
                 style="@style/SenyaSuggestion"
                 android:layout_width="0dp"
-                android:layout_height="44dp"
+                android:layout_height="36dp"
                 android:layout_weight="1"
                 android:visibility="invisible" />
 
@@ -353,7 +353,7 @@
                 android:id="@+id/suggestion_2"
                 style="@style/SenyaSuggestion"
                 android:layout_width="0dp"
-                android:layout_height="44dp"
+                android:layout_height="36dp"
                 android:layout_weight="1"
                 android:layout_marginStart="8dp"
                 android:visibility="invisible" />
@@ -362,7 +362,7 @@
                 android:id="@+id/suggestion_3"
                 style="@style/SenyaSuggestion"
                 android:layout_width="0dp"
-                android:layout_height="44dp"
+                android:layout_height="36dp"
                 android:layout_weight="1"
                 android:layout_marginStart="8dp"
                 android:visibility="invisible" />
@@ -370,8 +370,8 @@
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="64dp"
-            android:layout_marginTop="12dp"
+            android:layout_height="52dp"
+            android:layout_marginTop="8dp"
             android:orientation="horizontal">
 
             <com.google.android.material.button.MaterialButton
@@ -381,10 +381,10 @@
                 android:layout_height="match_parent"
                 android:layout_weight="2"
                 android:text="@string/speak"
-                android:textSize="20sp"
+                android:textSize="18sp"
                 app:icon="@drawable/ic_volume_up"
                 app:iconGravity="textStart"
-                app:iconSize="28dp" />
+                app:iconSize="24dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/backspace_button"
