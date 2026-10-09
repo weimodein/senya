@@ -35,18 +35,25 @@ class ModelUpdaterTest {
     fun tearDown() = server.close()
 
     /** Publishes version [v] like the platform does (contract §3 item 9). */
-    private fun publish(v: Int, withMotion: Boolean = true, sha: String? = null, golden: String = TestModels.staticGolden()) {
-        val dir = TestModels.writeFolder(File(root, "models/v$v"), withMotion = withMotion, golden = golden)
+    private fun publish(
+        v: Int,
+        withMotion: Boolean = true,
+        sha: String? = null,
+        golden: String = TestModels.staticGolden(),
+        motionGolden: String = TestModels.motionGolden(),
+        motionSha: String? = null,
+    ) {
+        val dir = TestModels.writeFolder(File(root, "models/v$v"), withMotion = withMotion, golden = golden, motionGolden = motionGolden)
         val modelSha = sha ?: sha256Hex(File(dir, ModelFiles.MODEL).readBytes())
         val motion = if (!withMotion) "null" else """{"model_url": "/models/v$v/motion.tflite",
             "labels_url": "/models/v$v/motion_labels.json", "config_url": "/models/v$v/motion_config.json",
-            "sha256": "${sha256Hex(File(dir, ModelFiles.MOTION_MODEL).readBytes())}"}"""
+            "sha256": "${motionSha ?: sha256Hex(File(dir, ModelFiles.MOTION_MODEL).readBytes())}"}"""
         File(root, "api/model").mkdirs()
         File(root, "api/model/latest").writeText("""{"version": $v, "model_url": "/models/v$v/model.tflite",
             "labels_url": "/models/v$v/labels.json", "sha256": "$modelSha", "motion": $motion}""")
     }
 
-    private fun leftovers() = modelsDir.listFiles().orEmpty().filter { it.name.startsWith("tmp") }
+    private fun leftovers() = modelsDir.listFiles().orEmpty().filter { it.name.startsWith("tmp-v") }
 
     @Test
     fun installsNewVersion() {
@@ -63,8 +70,9 @@ class ModelUpdaterTest {
     @Test
     fun staticOnlyVersion() {
         publish(4, withMotion = false)
-        val bundle = (updater.check(server.baseUrl + "/", 0) as ModelUpdater.Result.Updated).bundle
-        assertNull(bundle.motion)
+        val result = updater.check(server.baseUrl + "/", 0) as ModelUpdater.Result.Updated
+        assertNull(result.bundle.motion)
+        assertNull(result.motionError)
     }
 
     @Test
@@ -145,13 +153,13 @@ class ModelUpdaterTest {
         val firstStarted = java.util.concurrent.CountDownLatch(1)
         val releaseFirst = java.util.concurrent.CountDownLatch(1)
         val secondFetches = java.util.concurrent.atomic.AtomicInteger(0)
-        val first = ModelUpdater(modelsDir, TestModels.factory) { url ->
+        val first = ModelUpdater(modelsDir, TestModels.factory) { url, onBytes ->
             if (url.path.endsWith("model.tflite")) { firstStarted.countDown(); releaseFirst.await() }
-            ph.senya.app.data.httpGet(url)
+            ph.senya.app.data.httpGet(url, onBytes)
         }
-        val second = ModelUpdater(modelsDir, TestModels.factory) { url ->
+        val second = ModelUpdater(modelsDir, TestModels.factory) { url, onBytes ->
             secondFetches.incrementAndGet()
-            ph.senya.app.data.httpGet(url)
+            ph.senya.app.data.httpGet(url, onBytes)
         }
         val results = java.util.concurrent.ConcurrentLinkedQueue<ModelUpdater.Result>()
         val t1 = Thread { results += first.check(server.baseUrl, 0) }.also { it.start() }
@@ -179,5 +187,90 @@ class ModelUpdaterTest {
         File(root, "api/model").mkdirs()
         File(root, "api/model/latest").writeText("<html>")
         assertTrue(updater.check(server.baseUrl, 0) is ModelUpdater.Result.Failed)
+    }
+
+    @Test
+    fun httpGetReportsProgress() {
+        File(root, "big.bin").writeBytes(ByteArray(100_000) { it.toByte() })
+        val seen = mutableListOf<Pair<Long, Long>>()
+        val bytes = httpGet(java.net.URL(server.baseUrl + "/big.bin")) { read, total -> seen += read to total }
+        assertEquals(100_000, bytes.size)
+        assertEquals(100_000L to 100_000L, seen.last())
+    }
+
+    @Test
+    fun reportsSteps() {
+        publish(3)
+        val steps = mutableListOf<ModelUpdater.Step>()
+        updater.check(server.baseUrl, 0, onStep = { steps += it })
+        assertEquals(ModelUpdater.Step.Checking, steps.first())
+        assertTrue(steps.contains(ModelUpdater.Step.Downloading(3, 1f, 1f)))
+        assertEquals(ModelUpdater.Step.Verifying(3, ModelUpdater.Part.OK, ModelUpdater.Part.OK), steps.last())
+    }
+
+    @Test
+    fun motionChecksumMismatchInstallsStaticOnly() {
+        publish(3, motionSha = "0".repeat(64))
+        val result = updater.check(server.baseUrl, 0) as ModelUpdater.Result.Updated
+        assertNull(result.bundle.motion)
+        assertTrue(result.motionError!!.contains("checksum"))
+        assertTrue(File(updater.installedDir(3), ModelFiles.MODEL).isFile)
+        assertFalse(File(updater.installedDir(3), ModelFiles.MOTION_MODEL).exists())
+    }
+
+    @Test
+    fun missingMotionFileInstallsStaticOnly() {
+        publish(3)
+        File(root, "models/v3/motion_labels.json").delete()
+        val result = updater.check(server.baseUrl, 0) as ModelUpdater.Result.Updated
+        assertNull(result.bundle.motion)
+        assertTrue(result.motionError!!.contains("download failed"))
+        assertFalse(File(updater.installedDir(3), ModelFiles.MOTION_MODEL).exists())
+    }
+
+    @Test
+    fun motionGoldenFailureInstallsStaticOnly() {
+        publish(3, motionGolden = TestModels.motionGolden(listOf(TestModels.frames(0.2f, 0.8f) to "Z")))
+        val result = updater.check(server.baseUrl, 0) as ModelUpdater.Result.Updated
+        assertNull(result.bundle.motion)
+        assertTrue(result.motionError!!.contains("motion_golden"))
+        assertFalse(File(updater.installedDir(3), ModelFiles.MOTION_MODEL).exists())
+    }
+
+    @Test
+    fun forceReinstallsSameVersion() {
+        publish(3)
+        assertTrue(updater.check(server.baseUrl, localVersion = 3, force = true) is ModelUpdater.Result.Updated)
+    }
+
+    @Test
+    fun cancelBeforeStartInstallsNothing() {
+        publish(3)
+        assertEquals(ModelUpdater.Result.Cancelled, updater.check(server.baseUrl, 0, isCancelled = { true }))
+        assertFalse(updater.installedDir(3).exists())
+    }
+
+    @Test
+    fun cancelDuringDownloadInstallsNothing() {
+        publish(3)
+        var cancel = false
+        val result = updater.check(server.baseUrl, 0,
+            onStep = { if (it is ModelUpdater.Step.Downloading && it.static > 0f) cancel = true },
+            isCancelled = { cancel })
+        assertEquals(ModelUpdater.Result.Cancelled, result)
+        assertFalse(updater.installedDir(3).exists())
+        assertTrue(leftovers().isEmpty())
+    }
+
+    @Test
+    fun cancelAfterVerifyInstallsNothing() {
+        publish(3)
+        var cancel = false
+        val result = updater.check(server.baseUrl, 0,
+            onStep = { if (it == ModelUpdater.Step.Verifying(3, ModelUpdater.Part.OK, ModelUpdater.Part.OK)) cancel = true },
+            isCancelled = { cancel })
+        assertEquals(ModelUpdater.Result.Cancelled, result)
+        assertFalse(updater.installedDir(3).exists())
+        assertTrue(leftovers().isEmpty())
     }
 }

@@ -1,7 +1,6 @@
 package ph.senya.app.fragment
 
 import android.Manifest
-import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.GradientDrawable
@@ -11,10 +10,7 @@ import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
-import androidx.core.view.WindowInsetsControllerCompat
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import ph.senya.app.R
@@ -23,6 +19,7 @@ import ph.senya.app.data.ModelUpdater
 import ph.senya.app.databinding.FragmentOnboardingBinding
 import ph.senya.app.ml.ModelBundle
 import ph.senya.app.speech.Speaker
+import ph.senya.app.speech.VoiceDialog
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -61,9 +58,7 @@ class OnboardingFragment : Fragment() {
             view.visibility = View.INVISIBLE
             view.post {
                 if (!isAdded) return@post
-                val destination = if (PermissionsFragment.hasPermissions(requireContext()))
-                    R.id.action_onboarding_to_camera else R.id.action_onboarding_to_permissions
-                findNavController().navigate(destination)
+                findNavController().navigate(R.id.action_onboarding_to_camera)
             }
             return
         }
@@ -82,10 +77,6 @@ class OnboardingFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        requireActivity().window.apply {
-            statusBarColor = requireContext().getColor(android.R.color.white)
-            WindowInsetsControllerCompat(this, decorView).isAppearanceLightStatusBars = true
-        }
         if (voiceSettingsOpened) {
             voiceSettingsOpened = false
             speaker?.shutdown()
@@ -93,20 +84,12 @@ class OnboardingFragment : Fragment() {
         }
         if (cameraSettingsOpened) {
             cameraSettingsOpened = false
-            if (PermissionsFragment.hasPermissions(requireContext())) {
+            if (CameraPermission.granted(requireContext())) {
                 if (step == 1) showStep(2) else finishOnboarding()
             } else {
                 showCameraError()
             }
         }
-    }
-
-    override fun onPause() {
-        requireActivity().window.apply {
-            statusBarColor = requireContext().getColor(R.color.mp_color_primary)
-            WindowInsetsControllerCompat(this, decorView).isAppearanceLightStatusBars = false
-        }
-        super.onPause()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -126,9 +109,9 @@ class OnboardingFragment : Fragment() {
     private fun primaryAction() {
         when (step) {
             0 -> showStep(1)
-            1 -> if (PermissionsFragment.hasPermissions(requireContext())) showStep(2) else requestCamera()
+            1 -> if (CameraPermission.granted(requireContext())) showStep(2) else requestCamera()
             2 -> showStep(3)
-            3 -> if (PermissionsFragment.hasPermissions(requireContext())) finishOnboarding() else requestCamera()
+            3 -> if (CameraPermission.granted(requireContext())) finishOnboarding() else requestCamera()
         }
     }
 
@@ -140,11 +123,11 @@ class OnboardingFragment : Fragment() {
             R.string.app_name, R.string.onboarding_camera, R.string.onboarding_voice, R.string.onboarding_ready,
         )[next]).let { if (next == 0) it.uppercase() else it }
         binding.onboardingBack.visibility = if (next == 0) View.GONE else View.VISIBLE
-        binding.onboardingSecondary.visibility = if (next == 1 && !PermissionsFragment.hasPermissions(requireContext()))
+        binding.onboardingSecondary.visibility = if (next == 1 && !CameraPermission.granted(requireContext()))
             View.VISIBLE else View.GONE
         binding.onboardingPrimary.setText(when (next) {
             0 -> R.string.onboarding_get_started
-            1 -> if (PermissionsFragment.hasPermissions(requireContext())) R.string.onboarding_continue else R.string.allow_camera
+            1 -> if (CameraPermission.granted(requireContext())) R.string.onboarding_continue else R.string.allow_camera
             2 -> R.string.onboarding_continue
             else -> R.string.onboarding_start_signing
         })
@@ -216,37 +199,15 @@ class OnboardingFragment : Fragment() {
     }
 
     private fun chooseVoice() {
-        val choices = speaker?.availableVoices().orEmpty()
-        if (choices.isEmpty()) {
-            openVoiceSettings()
-            return
-        }
-        AlertDialog.Builder(requireContext())
-            .setTitle(R.string.onboarding_choose_voice)
-            .setSingleChoiceItems(choices.map { it.label }.toTypedArray(),
-                choices.indexOfFirst { it.name == speaker?.selectedVoiceName }) { dialog, which ->
-                if (speaker?.selectVoice(choices[which].name) != true) {
-                    Toast.makeText(requireContext(), R.string.onboarding_voice_select_failed, Toast.LENGTH_SHORT).show()
-                }
-                updateVoiceStatus()
-                dialog.dismiss()
-            }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
+        val current = speaker ?: return
+        VoiceDialog.show(requireContext(), current, ::openVoiceSettings, ::updateVoiceStatus)
     }
 
     private fun openVoiceSettings() {
-        voiceSettingsOpened = true
-        try {
-            startActivity(Intent("com.android.settings.TTS_SETTINGS"))
-        } catch (_: ActivityNotFoundException) {
-            try {
-                startActivity(Intent(Settings.ACTION_SETTINGS))
-            } catch (_: ActivityNotFoundException) {
-                voiceSettingsOpened = false
-                voiceError = getString(R.string.onboarding_voice_settings_unavailable)
-                updateVoiceStatus()
-            }
+        voiceSettingsOpened = VoiceDialog.openTtsSettings(requireContext())
+        if (!voiceSettingsOpened) {
+            voiceError = getString(R.string.onboarding_voice_settings_unavailable)
+            updateVoiceStatus()
         }
     }
 

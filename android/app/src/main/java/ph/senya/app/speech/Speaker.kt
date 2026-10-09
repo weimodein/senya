@@ -24,8 +24,9 @@ class Speaker(
     val isReady: Boolean get() = ready
     val selectedVoiceName: String? get() = selectedVoice?.name
 
-    fun availableVoices(): List<VoiceChoice> = offlineVoices.map { voice ->
-        VoiceChoice(voice.name, "${voice.locale.getDisplayName(Locale.getDefault())} · ${voice.name}")
+    fun availableVoices(): List<VoiceChoice> {
+        val labels = VoicePicker.labels(offlineVoices.map { it.locale.getDisplayLanguage(Locale.getDefault()) })
+        return offlineVoices.mapIndexed { i, voice -> VoiceChoice(voice.name, labels[i]) }
     }
 
     override fun onInit(status: Int) {

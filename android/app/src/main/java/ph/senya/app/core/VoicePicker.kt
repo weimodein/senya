@@ -25,4 +25,14 @@ object VoicePicker {
         o.language == "en" -> 3
         else -> null
     }
+
+    /** "Filipino · Voice 1", "Filipino · Voice 2": engine voice names mean nothing to people. */
+    fun labels(languages: List<String>): List<String> {
+        val counts = mutableMapOf<String, Int>()
+        return languages.map { language ->
+            val n = (counts[language] ?: 0) + 1
+            counts[language] = n
+            "$language · Voice $n"
+        }
+    }
 }

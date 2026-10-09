@@ -15,16 +15,27 @@
  */
 package ph.senya.app.fragment
 
+import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Intent
+import android.content.res.ColorStateList
 import android.content.res.Configuration
+import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
 import android.util.Log
 import android.util.Size
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.ColorRes
+import androidx.annotation.DrawableRes
 import androidx.camera.core.AspectRatio
 import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionSelector
@@ -36,21 +47,23 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
+import androidx.core.view.isVisible
+import androidx.core.widget.ImageViewCompat
 import androidx.fragment.app.Fragment
 import androidx.navigation.Navigation
 import com.google.mediapipe.tasks.vision.core.RunningMode
-import ph.senya.app.BuildConfig
 import ph.senya.app.HandLandmarkerHelper
 import ph.senya.app.R
 import ph.senya.app.core.EngineModels
 import ph.senya.app.core.FpsCounter
-import ph.senya.app.core.Prediction
 import ph.senya.app.core.StabilizerEvent
+import ph.senya.app.core.StatusTracker
 import ph.senya.app.core.Transcript
 import ph.senya.app.core.TranslatorEngine
+import ph.senya.app.core.TranslatorStatus
+import ph.senya.app.core.WordSuggester
 import ph.senya.app.data.ModelRepository
 import ph.senya.app.data.ModelUpdater
-import ph.senya.app.databinding.DialogSettingsBinding
 import ph.senya.app.databinding.FragmentCameraBinding
 import ph.senya.app.ml.AssetModelSource
 import ph.senya.app.ml.Landmarks
@@ -61,11 +74,15 @@ import ph.senya.app.speech.Speaker
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import kotlin.math.roundToInt
 
 class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
 
     companion object {
         private const val TAG = "Senya"
+
+        /** The automatic update check runs once per app start, not every time this screen's view is re-created. */
+        private var autoUpdateChecked = false
     }
 
     private var _binding: FragmentCameraBinding? = null
@@ -88,22 +105,39 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
     /** Only touched on [modelExecutor]. */
     private var bundle: ModelBundle? = null
     private val fps = FpsCounter()
-    @Volatile private var modelLabel = ""
-    /** While now < this, the chip keeps showing the motion letter just committed. */
-    private var motionShownUntilMs = 0L
     private var speaker: Speaker? = null
     private lateinit var repository: ModelRepository
     private val trail = ArrayDeque<Pair<Float, Float>>()
     private var lastMovingMs = 0L
+    private val statusTracker = StatusTracker()
+    private lateinit var suggester: WordSuggester
+    private var suggestions = emptyList<String>()
+    private var cameraStarted = false
+    private var deniedOnce = false
+    private var caretOn = true
+
+    private val cameraPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) startCamera() else {
+            deniedOnce = true
+            showPermissionDenied()
+        }
+    }
+
+    /** Blinks the transcript caret, as in the M2 mockup. */
+    private val caretBlink = object : Runnable {
+        override fun run() {
+            caretOn = !caretOn
+            renderTranscript()
+            _binding?.transcript?.postDelayed(this, 530)
+        }
+    }
 
     override fun onResume() {
         super.onResume()
-        // Make sure that all permissions are still present, since the
-        // user could have removed them while the app was in paused state.
-        if (!PermissionsFragment.hasPermissions(requireContext())) {
-            Navigation.findNavController(requireActivity(), R.id.fragment_container)
-                .navigate(R.id.action_camera_to_permissions)
-        }
+        // Back from the system settings screen with the permission granted
+        if (!cameraStarted && CameraPermission.granted(requireContext())) startCamera()
+        binding.transcript.removeCallbacks(caretBlink)
+        binding.transcript.post(caretBlink)
         // Start the HandLandmarkerHelper again when users come back to the foreground.
         backgroundExecutor.execute {
             if (handLandmarkerHelper.isClose()) handLandmarkerHelper.setupHandLandmarker()
@@ -112,6 +146,7 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
 
     override fun onPause() {
         super.onPause()
+        _binding?.transcript?.removeCallbacks(caretBlink)
         if (this::handLandmarkerHelper.isInitialized) {
             backgroundExecutor.execute { handLandmarkerHelper.clearHandLandmarker() }
         }
@@ -139,7 +174,9 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
         super.onViewCreated(view, savedInstanceState)
         backgroundExecutor = Executors.newSingleThreadExecutor()
         modelExecutor = Executors.newSingleThreadExecutor()
-        binding.viewFinder.post { setUpCamera() }
+        repository = ModelRepository(requireContext())
+        if (CameraPermission.granted(requireContext())) startCamera() else showPermissionDenied()
+        binding.grantPermission.setOnClickListener { requestCamera() }
         backgroundExecutor.execute {
             handLandmarkerHelper = HandLandmarkerHelper(
                 context = requireContext(),
@@ -149,20 +186,59 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
                 handLandmarkerHelperListener = this
             )
         }
+        suggester = WordSuggester(requireContext().assets.open("words.txt").bufferedReader().use { it.readLines() })
         binding.backspaceButton.setOnClickListener { transcript.backspace(); afterEdit() }
         binding.clearButton.setOnClickListener { transcript.clear(); afterEdit() }
-        renderTranscript()
+        listOf(binding.suggestion1, binding.suggestion2, binding.suggestion3).forEachIndexed { i, chip ->
+            chip.setOnClickListener {
+                val word = suggestions.getOrNull(i) ?: return@setOnClickListener
+                transcript.completeWord(word)
+                afterEdit()
+                if (repository.speakOnSpace) speaker?.speak(word)
+            }
+        }
+        onTranscriptChanged()
+        renderStatus(TranslatorStatus.NoHand)
         showModelLabel(getString(R.string.no_model))
-        repository = ModelRepository(requireContext())
-        binding.settingsButton.setOnClickListener { showSettings() }
+        binding.settingsButton.setOnClickListener {
+            Navigation.findNavController(requireActivity(), R.id.fragment_container).navigate(R.id.action_camera_to_settings)
+        }
         binding.flipCameraButton.setOnClickListener { flipCamera() }
+        val autoCheck = !autoUpdateChecked
+        autoUpdateChecked = true
         modelExecutor.execute {
             loadCurrentModel()
-            checkForUpdate(manual = false)
+            if (autoCheck) checkForUpdate()
         }
         speaker = Speaker(requireContext(), onStatus = { message -> toast(message) })
         binding.speakButton.isEnabled = true
         binding.speakButton.setOnClickListener { speaker?.speak(transcript.text) }
+    }
+
+    private fun startCamera() {
+        cameraStarted = true
+        binding.permissionDenied.isVisible = false
+        binding.flipCameraButton.isVisible = true
+        binding.statusRow.isVisible = true
+        binding.viewFinder.post { setUpCamera() }
+    }
+
+    /** Spec 5.4 and the M2 mockup: explain inline and offer to ask again. */
+    private fun showPermissionDenied() {
+        binding.permissionDenied.isVisible = true
+        binding.flipCameraButton.isVisible = false
+        binding.guessCard.isVisible = false
+        binding.statusRow.isVisible = false
+    }
+
+    private fun requestCamera() {
+        if (deniedOnce && !shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)) {
+            // "Don't ask again": only the system settings screen can grant it now
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.fromParts("package", requireContext().packageName, null)))
+        } else {
+            cameraPermission.launch(Manifest.permission.CAMERA)
+        }
     }
 
     // Initialize CameraX, and prepare to bind the camera use cases
@@ -243,22 +319,14 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
             }
             binding.overlay.setTrail(trail.toList())
             binding.overlay.invalidate()
-            binding.handHint.visibility = if (landmarks == null) View.VISIBLE else View.GONE
-            val now = result.timestampMs()
-            if (out.motionGuess != null && out.events.isNotEmpty()) {
-                motionShownUntilMs = now + 1000
-                showGuess(out.motionGuess)
-            } else if (now >= motionShownUntilMs) {
-                showGuess(out.staticGuess)
-            }
+            renderStatus(statusTracker.onFrame(result.timestampMs(), landmarks != null, out))
             if (out.events.isNotEmpty()) {
                 out.events.forEach { transcript.apply(it) }
-                renderTranscript()
+                onTranscriptChanged()
                 if (out.events.any { it is StabilizerEvent.Space } && repository.speakOnSpace) {
                     speaker?.speak(transcript.lastWord())
                 }
             }
-            binding.modelVersion.text = "$modelLabel · $currentFps fps"
         }
     }
 
@@ -279,7 +347,7 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
     }
 
     /** Runs on [modelExecutor]; on any failure the current model stays (spec §5.2). */
-    private fun checkForUpdate(manual: Boolean) {
+    private fun checkForUpdate() {
         val result = try {
             repository.checkForUpdate()
         } catch (e: Exception) {
@@ -291,13 +359,14 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
             is ModelUpdater.Result.Updated -> {
                 applyBundle(result.bundle)
                 toast("Updated to model v${result.bundle.version}")
+                result.motionError?.let { toast("J and Z are unavailable: $it") }
             }
             is ModelUpdater.Result.UpToDate -> {
                 // Onboarding's check may have installed a newer version after this screen loaded the old one
                 if (bundle?.version != repository.installedVersion) loadCurrentModel()
-                if (manual) toast("Model is up to date")
             }
-            is ModelUpdater.Result.NoModelPublished -> if (manual) toast("The server has no published model yet")
+            is ModelUpdater.Result.NoModelPublished -> {}
+            is ModelUpdater.Result.Cancelled -> {}
             is ModelUpdater.Result.Failed -> toast("Update failed: ${result.message}. Keeping the current model.")
         }
     }
@@ -316,56 +385,96 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
         bindCameraUseCases()
     }
 
-    private fun showSettings() {
-        val dialogBinding = DialogSettingsBinding.inflate(layoutInflater)
-        dialogBinding.speakOnSpace.isChecked = repository.speakOnSpace
-        // Release builds always use the deployed server; only debug builds can point elsewhere
-        dialogBinding.serverOverrideGroup.visibility = if (BuildConfig.DEBUG) View.VISIBLE else View.GONE
-        dialogBinding.serverOverride.setText(repository.serverOverride)
-        dialogBinding.serverOverride.hint = BuildConfig.SERVER_URL
-        fun save() {
-            if (BuildConfig.DEBUG) repository.serverOverride = dialogBinding.serverOverride.text.toString()
-            repository.speakOnSpace = dialogBinding.speakOnSpace.isChecked
-        }
-        AlertDialog.Builder(requireContext())
-            .setTitle(R.string.settings)
-            .setView(dialogBinding.root)
-            .setPositiveButton(R.string.save) { _, _ -> save() }
-            .setNeutralButton(R.string.check_for_update) { _, _ ->
-                save()
-                modelExecutor.execute { checkForUpdate(manual = true) }
-            }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
-    }
-
     /** Swaps the models the engine uses. Runs on [modelExecutor]. */
     private fun applyBundle(newBundle: ModelBundle) {
         engine.setModels(EngineModels(newBundle.static, newBundle.motion, newBundle.motionConfig))
         bundle?.close()
         bundle = newBundle
-        val kind = if (newBundle.motion == null) " · static only" else ""
-        showModelLabel("Model v${newBundle.version}$kind")
+        showModelLabel(getString(
+            if (newBundle.motion == null) R.string.model_version_static_only else R.string.model_version,
+            newBundle.version))
         newBundle.warning?.let { toast(it) }
     }
 
     private fun showModelLabel(text: String) {
-        modelLabel = text
         activity?.runOnUiThread { _binding?.modelVersion?.text = text }
-    }
-
-    private fun showGuess(guess: Prediction?) {
-        binding.guessLabel.text = guess?.label ?: getString(R.string.no_guess)
-        binding.guessConfidence.progress = ((guess?.confidence ?: 0f) * 100).toInt()
     }
 
     private fun afterEdit() {
         engine.onTranscriptEdited(transcript.isEmpty || transcript.endsWithSpace)
-        renderTranscript()
+        onTranscriptChanged()
     }
 
+    private fun onTranscriptChanged() {
+        renderTranscript()
+        suggestions = suggester.suggest(transcript.text)
+        listOf(binding.suggestion1, binding.suggestion2, binding.suggestion3).forEachIndexed { i, chip ->
+            val word = suggestions.getOrNull(i)
+            chip.visibility = if (word == null) View.INVISIBLE else View.VISIBLE
+            chip.text = word
+            chip.isSelected = i == 0
+        }
+    }
+
+    /** The text plus a blinking caret; empty shows the hint instead. */
     private fun renderTranscript() {
-        binding.transcript.text = transcript.text.ifEmpty { getString(R.string.transcript_placeholder) }
+        val b = _binding ?: return
+        val text = transcript.text
+        if (text.isEmpty()) {
+            b.transcript.text = ""
+            return
+        }
+        val caretColor = if (caretOn) requireContext().getColor(R.color.senya_blue) else Color.TRANSPARENT
+        b.transcript.text = SpannableStringBuilder(text).apply {
+            val start = length
+            append("|")
+            setSpan(ForegroundColorSpan(caretColor), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+    }
+
+    private fun renderStatus(status: TranslatorStatus) {
+        val b = binding
+        val recording = status is TranslatorStatus.Recording
+        b.guessCard.isVisible = status !is TranslatorStatus.NoHand
+        b.guessSpinner.isVisible = recording
+        b.guessLabel.isVisible = !recording
+        b.guessPercent.isVisible = !recording
+        b.guessConfidence.isVisible = !recording
+        b.statusSpinner.isVisible = recording
+        b.statusIcon.isVisible = !recording
+        when (status) {
+            is TranslatorStatus.NoHand -> hint(R.drawable.ic_back_hand, R.color.senya_ink, getString(R.string.hand_hint))
+            is TranslatorStatus.Holding -> {
+                guess(status.label, status.confidence, R.string.guess_hold)
+                hint(R.drawable.ic_back_hand, R.color.senya_ink, getString(R.string.status_hold_steady))
+            }
+            is TranslatorStatus.Unsure -> {
+                guess("?", status.confidence, R.string.guess_not_added)
+                hint(R.drawable.ic_warning, R.color.senya_warning, getString(R.string.status_not_sure))
+            }
+            is TranslatorStatus.Recording -> {
+                b.guessCaption.setText(R.string.guess_recording)
+                b.handHint.setText(R.string.status_finish_movement)
+            }
+            is TranslatorStatus.AddedMotion -> {
+                guess(status.label, status.confidence, R.string.guess_added)
+                hint(R.drawable.ic_check_circle, R.color.senya_blue, getString(R.string.status_added, status.label))
+            }
+        }
+    }
+
+    private fun guess(label: String, confidence: Float, caption: Int) {
+        val percent = (confidence * 100).roundToInt().coerceIn(0, 100)
+        binding.guessLabel.text = label
+        binding.guessPercent.text = getString(R.string.percent, percent)
+        binding.guessConfidence.progress = percent
+        binding.guessCaption.setText(caption)
+    }
+
+    private fun hint(@DrawableRes icon: Int, @ColorRes tint: Int, text: String) {
+        binding.statusIcon.setImageResource(icon)
+        ImageViewCompat.setImageTintList(binding.statusIcon, ColorStateList.valueOf(requireContext().getColor(tint)))
+        binding.handHint.text = text
     }
 
     private fun toast(message: String) {
