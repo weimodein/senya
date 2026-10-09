@@ -381,7 +381,7 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
             }
             is ModelUpdater.Result.UpToDate -> {
                 // Onboarding's check may have installed a newer version after this screen loaded the old one
-                if (bundle?.version != repository.installedVersion) loadCurrentModel()
+                if (bundle?.version != repository.currentVersion) loadCurrentModel()
             }
             is ModelUpdater.Result.NoModelPublished -> {}
             is ModelUpdater.Result.Cancelled -> {}

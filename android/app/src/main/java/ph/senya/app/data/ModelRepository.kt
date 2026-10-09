@@ -8,6 +8,7 @@ import ph.senya.app.ml.ModelBundle
 import ph.senya.app.ml.ModelInfo
 import ph.senya.app.ml.ModelLoadException
 import ph.senya.app.ml.TfliteModel
+import ph.senya.app.ml.bundledVersion
 import java.io.File
 
 /** Settings + the installed model version (SharedPreferences) + bundled fallback (spec §5.2, §5.4). */
@@ -38,6 +39,12 @@ class ModelRepository(context: Context) {
 
     val installedVersion: Int get() = prefs.getInt(KEY_VERSION, 0)
 
+    /** The bundled model may be a real published version (tools/fetch_bundled_model.py), not only the v0 demo. */
+    private val bundledVersion: Int by lazy { AssetModelSource(appContext.assets).bundledVersion() }
+
+    /** The version in use: the downloaded one, else the bundled one. */
+    val currentVersion: Int get() = installedVersion.takeIf { it != 0 } ?: bundledVersion
+
     /** The downloaded model if it loads, else the bundled one. Throws only if the bundled model is broken too. */
     fun loadCurrent(): Loaded {
         val v = installedVersion
@@ -50,14 +57,14 @@ class ModelRepository(context: Context) {
                 prefs.edit().putInt(KEY_VERSION, 0).apply()
             }
         }
-        return Loaded(ModelBundle.load(0, AssetModelSource(appContext.assets), TfliteModel::fromBytes), message)
+        return Loaded(ModelBundle.load(bundledVersion, AssetModelSource(appContext.assets), TfliteModel::fromBytes), message)
     }
 
     /** The installed model's description, else the bundled one's; null if neither can be read. Reads only label files. */
     fun currentInfo(): ModelInfo? {
         val v = installedVersion
         if (v != 0) ModelInfo.read(v, DirModelSource(updater.installedDir(v)))?.let { return it }
-        return ModelInfo.read(0, AssetModelSource(appContext.assets))
+        return ModelInfo.read(bundledVersion, AssetModelSource(appContext.assets))
     }
 
     /** Blocks on the network; call off the main thread. See [ModelUpdater.check] for [force], [onStep] and [isCancelled]. */
@@ -65,7 +72,7 @@ class ModelRepository(context: Context) {
         force: Boolean = false,
         onStep: (ModelUpdater.Step) -> Unit = {},
         isCancelled: () -> Boolean = { false },
-    ): ModelUpdater.Result = updater.check(serverUrl, installedVersion, force, onStep, isCancelled).also {
+    ): ModelUpdater.Result = updater.check(serverUrl, currentVersion, force, onStep, isCancelled).also {
         if (it is ModelUpdater.Result.Updated) prefs.edit().putInt(KEY_VERSION, it.bundle.version).apply()
         if (it !is ModelUpdater.Result.Failed && it !is ModelUpdater.Result.Cancelled) {
             prefs.edit().putLong(KEY_LAST_CHECK, System.currentTimeMillis()).apply()
