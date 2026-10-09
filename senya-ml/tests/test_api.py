@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.core import contract, data
 from app.main import app
+from app.routers import extract as extract_router
 from app.services import jobs
 
 KEY = {"X-API-Key": "test-key"}
@@ -87,3 +88,18 @@ def test_run_job_reports_a_failure_instead_of_raising():
     assert not fake.results
     (model_id, error), = fake.failures
     assert model_id == 4 and "not enough data" in error
+
+
+def test_extract_rejects_a_bad_mode():
+    r = client.post("/extract", headers=KEY, data={"kind": "motion", "mode": "twice"}, files={"file": ("a.mov", b"x")})
+    assert r.status_code == 400
+
+
+def test_extract_passes_the_mode_on_and_defaults_to_multi(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(extract_router, "extract",
+                        lambda data, name, kind, mode: seen.update(kind=kind, mode=mode) or {"kind": kind})
+    r = client.post("/extract", headers=KEY, data={"kind": "motion", "mode": "single"}, files={"file": ("a.mov", b"x")})
+    assert r.status_code == 200 and seen == {"kind": "motion", "mode": "single"}
+    client.post("/extract", headers=KEY, data={"kind": "motion"}, files={"file": ("a.mov", b"x")})
+    assert seen["mode"] == "multi"

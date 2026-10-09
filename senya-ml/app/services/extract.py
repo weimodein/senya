@@ -315,23 +315,38 @@ def _static_from_video(frames: list) -> dict:
     }
 
 
+def _sequence(segment, by_t: dict) -> dict:
+    """One Segment -> the contract's sequence: raw frames, plus a thumbnail of the middle frame when we have pixels."""
+    hand_frames = [by_t[f["t_ms"]] for f in segment.frames if f["landmarks"] is not None and f["t_ms"] in by_t]
+    middle = hand_frames[len(hand_frames) // 2] if hand_frames else None
+    return {
+        "duration_ms": int(round(segment.end_ms - segment.start_ms)),
+        "handedness": next((f.get("handedness") for f in hand_frames if f.get("handedness")), None),
+        "thumb": _thumb(middle["bgr"]) if middle is not None and middle.get("bgr") is not None else None,
+        "frames": segment.frames,
+    }
+
+
 def _motion_from_video(frames: list) -> dict:
+    """mode "multi": the clip repeats the movement with pauses; every movement becomes a sequence."""
     segments = segment_clip([{"t_ms": f["t_ms"], "landmarks": f["landmarks"]} for f in frames])
     if not segments:
         raise ExtractionError("no complete movement found (sign, pause, sign again; keep the hand in view)")
     by_t = {f["t_ms"]: f for f in frames}
-    sequences = []
-    for s in segments:
-        hand_frames = [by_t[f["t_ms"]] for f in s.frames if f["landmarks"] is not None and f["t_ms"] in by_t]
-        middle = hand_frames[len(hand_frames) // 2] if hand_frames else None
-        sequences.append({
-            "duration_ms": int(round(s.end_ms - s.start_ms)),
-            "handedness": next((f["handedness"] for f in hand_frames if f["handedness"]), None),
-            "thumb": _thumb(middle["bgr"]) if middle else None,
-            "frames": s.frames,
-        })
     return {"kind": "motion", "no_hand_frames": sum(1 for f in frames if f["landmarks"] is None),
-            "sequences": sequences}
+            "sequences": [_sequence(s, by_t) for s in segments]}
+
+
+def _single_from_video(frames: list) -> dict:
+    """mode "single": raise, sign once, lower. The sign is the one sequence; the raise and lower come back as
+    none_sequences, for the backend to store as _none samples."""
+    take = find_single_take(frames)
+    if take is None:
+        raise ExtractionError("no movement found: raise the hand, sign once, then lower it (keep the hand in view)")
+    by_t = {f["t_ms"]: f for f in frames}
+    return {"kind": "motion", "no_hand_frames": sum(1 for f in frames if f["landmarks"] is None),
+            "sequences": [_sequence(take.sign, by_t)],
+            "none_sequences": [_sequence(s, by_t) for s in take.rest]}
 
 
 def _from_image(data: bytes) -> dict:
@@ -347,12 +362,16 @@ def _from_image(data: bytes) -> dict:
 
 
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+MODES = ("single", "multi")
 
 
-def extract(data: bytes, filename: str, kind: str) -> dict:
-    """One uploaded file -> the body the backend stores (architecture.md §5.4)."""
+def extract(data: bytes, filename: str, kind: str, mode: str = "multi") -> dict:
+    """One uploaded file -> the body the backend stores (architecture.md §5.4). mode only applies to motion signs:
+    "single" = one movement per clip (raise, sign, lower), "multi" = the movement repeated with pauses."""
     if kind not in ("static", "motion"):
         raise ValueError("kind must be 'static' or 'motion'")
+    if mode not in MODES:
+        raise ValueError("mode must be 'single' or 'multi'")
     # Keep the real extension: OpenCV picks its decoder from it on Windows, and a wrong suffix makes decoding silently fail.
     suffix = os.path.splitext(filename or "")[1].lower() or ".mp4"
     if suffix in IMAGE_SUFFIXES:
@@ -366,7 +385,10 @@ def extract(data: bytes, filename: str, kind: str) -> dict:
         frames = _track_video(path)
     finally:
         os.unlink(path)
-    result = _static_from_video(frames) if kind == "static" else _motion_from_video(frames)
+    if kind == "static":
+        result = _static_from_video(frames)
+    else:
+        result = _single_from_video(frames) if mode == "single" else _motion_from_video(frames)
     if kind == "static" and not result["samples"]:
         raise ExtractionError("no hand found in this clip")
     assert all(len(s["landmarks"]) == contract.FLOATS for s in result.get("samples", []))

@@ -4,7 +4,7 @@ import pathlib
 
 import pytest
 
-from app.services.extract import find_single_take
+from app.services.extract import ExtractionError, _single_from_video, find_single_take
 
 J_TRACKS = json.loads((pathlib.Path(__file__).parent / "fixtures" / "j_tracks.json").read_text())
 PAD_MS = 150
@@ -90,3 +90,19 @@ def test_real_j_clips_give_exactly_one_j_between_the_raise_and_the_lower(name):
     hand_t = [f["t_ms"] for f in frames if f["landmarks"] is not None]
     assert hand_t[0] < take.sign.start_ms and take.sign.end_ms < hand_t[-1], why
     assert len(take.rest) == 2, why
+
+
+def test_single_from_video_returns_one_sequence_and_the_none_cuts():
+    out = _single_from_video(J_TRACKS["signer-02/IMG_4431.MOV"]["frames"])
+    assert out["kind"] == "motion"
+    assert len(out["sequences"]) == 1 and len(out["none_sequences"]) == 2
+    seq = out["sequences"][0]
+    assert 700 <= seq["duration_ms"] <= 2000
+    assert seq["thumb"] is None  # fixture tracks carry no pixels
+    assert all(f["landmarks"] is None or len(f["landmarks"]) == 63 for f in seq["frames"])
+
+
+def test_single_from_video_explains_a_clip_without_a_movement():
+    frames = clip([AWAY, RAISE, ("hold", 30, TOP, TOP), ("lower", 8, TOP, LOW_L), AWAY])
+    with pytest.raises(ExtractionError, match="sign once"):
+        _single_from_video(frames)
