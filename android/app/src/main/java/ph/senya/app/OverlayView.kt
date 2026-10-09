@@ -17,7 +17,6 @@ package ph.senya.app
 
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.util.AttributeSet
 import android.view.View
@@ -38,7 +37,7 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
     /** Index fingertip positions (normalized image coords) while a movement is being recorded. */
     private var trail: List<Pair<Float, Float>> = emptyList()
     private val trailPaint = Paint().apply {
-        color = Color.CYAN
+        color = 0xCC2F80ED.toInt()
         strokeWidth = 10f
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
@@ -66,14 +65,17 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
     }
 
     private fun initPaints() {
-        linePaint.color =
-            ContextCompat.getColor(context!!, R.color.mp_color_primary)
-        linePaint.strokeWidth = LANDMARK_STROKE_WIDTH
+        val blue = ContextCompat.getColor(context!!, R.color.senya_blue)
+        linePaint.color = blue
+        linePaint.strokeWidth = 4f
         linePaint.style = Paint.Style.STROKE
+        linePaint.isAntiAlias = true
 
-        pointPaint.color = Color.YELLOW
+        pointPaint.color = blue
         pointPaint.strokeWidth = LANDMARK_STROKE_WIDTH
         pointPaint.style = Paint.Style.FILL
+        pointPaint.strokeCap = Paint.Cap.ROUND
+        pointPaint.isAntiAlias = true
     }
 
     override fun draw(canvas: Canvas) {

@@ -22,7 +22,7 @@
     <color name="mp_color_secondary_variant">#F9AB00</color>
     <color name="mp_color_error">#B00020</color>
     <color name="toolbar_background">#E0E0E0</color>
-    <color name="ic_launcher_background">#FFFFFF</color>
+    <color name="ic_launcher_background">#F6F7F9</color>
     <color name="bottom_sheet_background">#EEEEEE</color>
     <color name="bottom_sheet_text_color">@android:color/black</color>
     <color name="icActive">#FFFFFFFF</color>
@@ -38,14 +38,15 @@
     <color name="senya_blue_dark">#1C64C8</color>
     <color name="senya_button">#7DB8F7</color>
     <color name="senya_on_button">#0E2240</color>
-    <color name="senya_ink">#111827</color>
+    <color name="senya_ink">#202630</color>
     <color name="senya_muted">#6B7280</color>
     <color name="senya_rule">#E5E9F0</color>
     <color name="senya_surface">#FFFFFF</color>
-    <color name="senya_background">#F3F5F9</color>
+    <color name="senya_background">#F6F7F9</color>
     <color name="senya_chip">#EDF1F7</color>
     <color name="senya_chip_selected">#D3E6FF</color>
     <color name="senya_warning">#F59E0B</color>
     <color name="senya_error">#EF4444</color>
     <color name="senya_scrim">#CC2A2F36</color>
+    <color name="senya_outline">#D1D5DB</color>
 </resources>

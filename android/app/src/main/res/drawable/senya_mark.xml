@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SENYA palm-frame mark, from SENYA-brand-final/senya-brand-mark.svg. Do not recolor or redraw. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="28dp"
+    android:viewportWidth="256"
+    android:viewportHeight="256">
+    <path
+        android:fillColor="#8BB8E8"
+        android:pathData="M22 18h45a9 9 0 0 1 0 18H31v36a9 9 0 0 1-18 0V27a9 9 0 0 1 9-9Z" />
+    <path
+        android:fillColor="#8BB8E8"
+        android:pathData="M238 247h-32a9 9 0 0 1 0-18h23v-32a9 9 0 0 1 18 0v41a9 9 0 0 1-9 9Z" />
+    <path
+        android:fillColor="#8BB8E8"
+        android:pathData="M91 183 50 128c-5-7-3-15 3-19 6-4 13-3 18 2l22 25V61c0-8 5-14 12-14s13 6 13 14v57c0 5 7 5 7 0V46c0-8 5-14 12-14s13 6 13 14v72c0 5 7 5 7 0V61c0-8 5-14 12-14s13 6 13 14v68c0 5 6 6 7 1l9-49c2-8 7-12 14-11 8 1 12 8 11 15l-15 90c-4 29-24 55-57 55-27 0-45-15-60-47Z" />
+</vector>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SENYA primary logo (mark + wordmark), from SENYA-brand-final/senya-logo-primary.svg. Do not recolor or redraw. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="118dp"
+    android:height="32dp"
+    android:viewportWidth="1032"
+    android:viewportHeight="280">
+    <group
+        android:translateX="16"
+        android:translateY="12">
+        <path
+            android:fillColor="#8BB8E8"
+            android:pathData="M22 18h45a9 9 0 0 1 0 18H31v36a9 9 0 0 1-18 0V27a9 9 0 0 1 9-9Z" />
+        <path
+            android:fillColor="#8BB8E8"
+            android:pathData="M238 247h-32a9 9 0 0 1 0-18h23v-32a9 9 0 0 1 18 0v41a9 9 0 0 1-9 9Z" />
+        <path
+            android:fillColor="#8BB8E8"
+            android:pathData="M91 183 50 128c-5-7-3-15 3-19 6-4 13-3 18 2l22 25V61c0-8 5-14 12-14s13 6 13 14v57c0 5 7 5 7 0V46c0-8 5-14 12-14s13 6 13 14v72c0 5 7 5 7 0V61c0-8 5-14 12-14s13 6 13 14v68c0 5 6 6 7 1l9-49c2-8 7-12 14-11 8 1 12 8 11 15l-15 90c-4 29-24 55-57 55-27 0-45-15-60-47Z" />
+    </group>
+    <group
+        android:translateX="282"
+        android:translateY="53">
+        <path
+            android:fillColor="#202630"
+            android:pathData="M112 0H48C18 0 0 17 0 43c0 21 11 33 37 43l35 13c8 3 12 6 12 11 0 6-5 10-14 10H0v36h71c33 0 54-18 54-45 0-23-12-36-39-46L51 52c-8-3-12-6-12-10 0-5 4-8 12-8h61Z" />
+        <path
+            android:fillColor="#202630"
+            android:pathData="M143 0h115v35h-76v26h68v33h-68v27h76v35H143Z" />
+        <path
+            android:fillColor="#202630"
+            android:pathData="M280 156V17c0-10 7-17 17-17 6 0 11 3 15 8l75 88V0h38v139c0 10-7 17-17 17-6 0-11-3-15-8l-75-88v96Z" />
+        <path
+            android:fillColor="#8BB8E8"
+            android:pathData="M439 0h43l48 64v92h-40V77Z" />
+        <path
+            android:fillColor="#8BB8E8"
+            android:pathData="M538 58 510 22 527 0h44Z" />
+        <path
+            android:fillColor="#202630"
+            android:fillType="evenOdd"
+            android:pathData="M580 156 631 14c3-9 9-14 18-14s15 5 18 14l51 142h-42l-9-28h-38l-9 28Zm60-62h16l-8-27Z" />
+    </group>
+</vector>

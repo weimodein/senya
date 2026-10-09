@@ -26,7 +26,6 @@ import android.os.Bundle
 import android.provider.Settings
 import android.text.SpannableStringBuilder
 import android.text.Spanned
-import android.text.style.ForegroundColorSpan
 import android.util.Log
 import android.util.Size
 import android.view.LayoutInflater
@@ -45,8 +44,10 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
+import androidx.camera.core.UseCaseGroup
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
+import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import androidx.core.widget.ImageViewCompat
 import androidx.fragment.app.Fragment
@@ -71,6 +72,7 @@ import ph.senya.app.ml.ModelBundle
 import ph.senya.app.ml.ModelLoadException
 import ph.senya.app.ml.TfliteModel
 import ph.senya.app.speech.Speaker
+import ph.senya.app.ui.CaretSpan
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -80,6 +82,9 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
 
     companion object {
         private const val TAG = "Senya"
+
+        /** Keeps the caret on the same line as the last letter. */
+        private const val WORD_JOINER = "⁠"
 
         /** The automatic update check runs once per app start, not every time this screen's view is re-created. */
         private var autoUpdateChecked = false
@@ -256,6 +261,14 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
         val cameraProvider = cameraProvider ?: throw IllegalStateException("Camera initialization failed.")
         val cameraSelector = CameraSelector.Builder().requireLensFacing(cameraFacing).build()
 
+        // The ViewPort makes Preview and ImageAnalysis share the visible crop, so hands outside the preview aren't detected.
+        // It is null until the view is laid out: bind again then, instead of binding without it.
+        val viewPort = binding.viewFinder.viewPort
+        if (viewPort == null) {
+            binding.viewFinder.doOnLayout { if (_binding != null) bindCameraUseCases() }
+            return
+        }
+
         preview = Preview.Builder().setTargetAspectRatio(AspectRatio.RATIO_4_3)
             .setTargetRotation(binding.viewFinder.display.rotation)
             .build()
@@ -274,7 +287,12 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
 
         cameraProvider.unbindAll()
         try {
-            camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalyzer)
+            val group = UseCaseGroup.Builder()
+                .setViewPort(viewPort)
+                .addUseCase(preview!!)
+                .addUseCase(imageAnalyzer!!)
+                .build()
+            camera = cameraProvider.bindToLifecycle(this, cameraSelector, group)
             preview?.setSurfaceProvider(binding.viewFinder.surfaceProvider)
         } catch (exc: Exception) {
             Log.e(TAG, "Use case binding failed", exc)
@@ -286,7 +304,7 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
     private fun detectHand(imageProxy: ImageProxy) {
         if (!loggedSize) {
             loggedSize = true
-            Log.d(TAG, "perf analysis frame ${imageProxy.width}x${imageProxy.height} rotation=${imageProxy.imageInfo.rotationDegrees}")
+            Log.d(TAG, "perf analysis frame ${imageProxy.width}x${imageProxy.height} rotation=${imageProxy.imageInfo.rotationDegrees} cropRect=${imageProxy.cropRect}")
         }
         handLandmarkerHelper.detectLiveStream(
             imageProxy = imageProxy,
@@ -390,9 +408,7 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
         engine.setModels(EngineModels(newBundle.static, newBundle.motion, newBundle.motionConfig))
         bundle?.close()
         bundle = newBundle
-        showModelLabel(getString(
-            if (newBundle.motion == null) R.string.model_version_static_only else R.string.model_version,
-            newBundle.version))
+        showModelLabel(getString(R.string.model_version, newBundle.version))
         newBundle.warning?.let { toast(it) }
     }
 
@@ -420,15 +436,18 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
     private fun renderTranscript() {
         val b = _binding ?: return
         val text = transcript.text
+        b.transcriptPlaceholder.isVisible = text.isEmpty()
         if (text.isEmpty()) {
             b.transcript.text = ""
             return
         }
         val caretColor = if (caretOn) requireContext().getColor(R.color.senya_blue) else Color.TRANSPARENT
+        val density = resources.displayMetrics.density
         b.transcript.text = SpannableStringBuilder(text).apply {
+            append(WORD_JOINER)
             val start = length
-            append("|")
-            setSpan(ForegroundColorSpan(caretColor), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            append(" ")
+            setSpan(CaretSpan(caretColor, 3 * density, 6 * density), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
     }
 
@@ -440,6 +459,8 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
         b.guessLabel.isVisible = !recording
         b.guessPercent.isVisible = !recording
         b.guessConfidence.isVisible = !recording
+        b.guessRecordingText.isVisible = recording
+        b.guessCaption.isVisible = !recording
         b.statusSpinner.isVisible = recording
         b.statusIcon.isVisible = !recording
         when (status) {
@@ -452,10 +473,7 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
                 guess("?", status.confidence, R.string.guess_not_added)
                 hint(R.drawable.ic_warning, R.color.senya_warning, getString(R.string.status_not_sure))
             }
-            is TranslatorStatus.Recording -> {
-                b.guessCaption.setText(R.string.guess_recording)
-                b.handHint.setText(R.string.status_finish_movement)
-            }
+            is TranslatorStatus.Recording -> b.handHint.setText(R.string.status_finish_movement)
             is TranslatorStatus.AddedMotion -> {
                 guess(status.label, status.confidence, R.string.guess_added)
                 hint(R.drawable.ic_check_circle, R.color.senya_blue, getString(R.string.status_added, status.label))

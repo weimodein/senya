@@ -66,6 +66,7 @@ class ModelUpdateFragment : Fragment() {
             state is UpdateScreenState.StaticOnly
         b.updateInfo.isVisible = true
         b.updateSecondary.isVisible = false
+        b.updateVersions.isVisible = false
         showCurrent(state.current, staticOnly = state is UpdateScreenState.StaticOnly)
         when (state) {
             is UpdateScreenState.Checking -> {
@@ -94,7 +95,8 @@ class ModelUpdateFragment : Fragment() {
             }
             is UpdateScreenState.Updated -> {
                 icon(R.drawable.ic_check_circle, R.color.senya_blue)
-                text(R.string.update_updated_title, getString(R.string.update_updated_body, state.from, state.to))
+                text(R.string.update_updated_title, getString(R.string.update_updated_body))
+                versions(state.from, state.to)
                 parts(Part.OK, if (state.current.hasMotion) Part.OK else null, done = true)
                 b.updateInfo.isVisible = false
                 primary(R.string.onboarding_start_signing) { toCamera() }
@@ -109,7 +111,8 @@ class ModelUpdateFragment : Fragment() {
             }
             is UpdateScreenState.RolledBack -> {
                 icon(R.drawable.ic_history, R.color.senya_blue)
-                text(R.string.update_rolled_back_title, getString(R.string.update_rolled_back_body, state.from, state.to))
+                text(R.string.update_rolled_back_title, getString(R.string.update_rolled_back_body))
+                versions(state.from, state.to)
                 info(getString(R.string.update_info_available, state.current.typeText))
                 primary(R.string.update_continue_signing) { toCamera() }
             }
@@ -141,6 +144,11 @@ class ModelUpdateFragment : Fragment() {
     private fun text(@StringRes title: Int, subtitle: String) {
         binding.updateTitle.setText(title)
         binding.updateSubtitle.text = subtitle
+    }
+
+    private fun versions(from: Int, to: Int) {
+        binding.updateVersions.isVisible = true
+        binding.updateVersions.text = getString(R.string.update_versions, from, to)
     }
 
     private fun icon(@DrawableRes icon: Int, @ColorRes tint: Int) {

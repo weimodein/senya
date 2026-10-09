@@ -61,7 +61,7 @@
                     android:layout_width="136dp"
                     android:layout_height="136dp"
                     android:contentDescription="@null"
-                    android:src="@drawable/onboarding_hand" />
+                    android:src="@drawable/senya_mark" />
 
                 <TextView
                     style="@style/OnboardingTitle"
