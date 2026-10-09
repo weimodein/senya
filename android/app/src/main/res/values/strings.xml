@@ -120,4 +120,5 @@
     <string name="onboarding_start_signing">Start signing</string>
     <string name="onboarding_open_camera">Open camera</string>
     <string name="onboarding_camera_required">Allow camera access to start signing.</string>
+    <string name="navigate_back">Back</string>
 </resources>

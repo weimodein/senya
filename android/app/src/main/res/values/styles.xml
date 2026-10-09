@@ -18,17 +18,16 @@
 
     <!-- Base application theme. -->
     <style name="AppTheme" parent="Theme.MaterialComponents.Light.NoActionBar" >
-        <!-- Primary brand color. -->
-        <item name="colorPrimary">@color/mp_color_primary</item>
-        <item name="colorPrimaryVariant">@color/mp_color_primary_variant</item>
-        <item name="colorPrimaryDark">@color/mp_color_primary_dark</item>
-        <!-- Secondary brand color. -->
-        <item name="colorSecondary">@color/mp_color_secondary</item>
-        <item name="colorSecondaryVariant">@color/mp_color_secondary_variant</item>
-        <item name="colorError">@color/mp_color_error</item>
-        <!-- Status bar color. -->
-        <item name="android:statusBarColor">?attr/colorPrimary</item>
-        <!-- Customize your theme here. -->
+        <item name="colorPrimary">@color/senya_blue</item>
+        <item name="colorPrimaryVariant">@color/senya_blue_dark</item>
+        <item name="colorPrimaryDark">@color/senya_surface</item>
+        <item name="colorOnPrimary">@android:color/white</item>
+        <item name="colorSecondary">@color/senya_blue</item>
+        <item name="colorSecondaryVariant">@color/senya_blue_dark</item>
+        <item name="colorError">@color/senya_error</item>
+        <item name="android:statusBarColor">@color/senya_surface</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowBackground">@color/senya_background</item>
     </style>
 
     <style name="BottomSheetSpinnerItemStyle" parent="Widget.AppCompat.Light.DropDownItem.Spinner">
@@ -64,6 +63,87 @@
 
     <style name="OnboardingLabel">
         <item name="android:textColor">@color/onboarding_ink</item>
+        <item name="android:textSize">16sp</item>
+    </style>
+
+    <style name="SenyaPrimaryButton" parent="Widget.MaterialComponents.Button.UnelevatedButton">
+        <item name="android:minHeight">56dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="backgroundTint">@color/senya_button</item>
+        <item name="android:textColor">@color/senya_on_button</item>
+        <item name="iconTint">@color/senya_on_button</item>
+        <item name="android:textSize">18sp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:letterSpacing">0</item>
+        <item name="cornerRadius">12dp</item>
+    </style>
+
+    <style name="SenyaSecondaryButton" parent="SenyaPrimaryButton">
+        <item name="backgroundTint">@color/senya_chip</item>
+        <item name="android:textColor">@color/senya_ink</item>
+    </style>
+
+    <style name="SenyaToolButton" parent="Widget.MaterialComponents.Button.UnelevatedButton">
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:paddingStart">4dp</item>
+        <item name="android:paddingEnd">4dp</item>
+        <item name="backgroundTint">@color/senya_chip</item>
+        <item name="android:textColor">@color/senya_ink</item>
+        <item name="iconTint">@color/senya_ink</item>
+        <item name="iconGravity">top</item>
+        <item name="iconPadding">2dp</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:letterSpacing">0</item>
+        <item name="cornerRadius">12dp</item>
+    </style>
+
+    <style name="SenyaScreenTitle">
+        <item name="android:textColor">@color/senya_ink</item>
+        <item name="android:textSize">24sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="SenyaSectionTitle">
+        <item name="android:textColor">@color/senya_ink</item>
+        <item name="android:textSize">20sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="SenyaBody">
+        <item name="android:textColor">@color/senya_muted</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:lineSpacingExtra">2dp</item>
+    </style>
+
+    <style name="SenyaRowLabel">
+        <item name="android:textColor">@color/senya_ink</item>
+        <item name="android:textSize">16sp</item>
+    </style>
+
+    <style name="SenyaRowValue">
+        <item name="android:textColor">@color/senya_ink</item>
+        <item name="android:textSize">16sp</item>
+    </style>
+
+    <style name="SenyaCaption">
+        <item name="android:textColor">@color/senya_muted</item>
+        <item name="android:textSize">13sp</item>
+    </style>
+
+    <style name="SenyaSuggestion">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">44dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:background">@drawable/bg_suggestion</item>
+        <item name="android:gravity">center</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:paddingStart">8dp</item>
+        <item name="android:paddingEnd">8dp</item>
+        <item name="android:textColor">@color/senya_ink</item>
         <item name="android:textSize">16sp</item>
     </style>
 </resources>

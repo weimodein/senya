@@ -14,7 +14,6 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
-import androidx.core.view.WindowInsetsControllerCompat
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import ph.senya.app.R
@@ -82,10 +81,6 @@ class OnboardingFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        requireActivity().window.apply {
-            statusBarColor = requireContext().getColor(android.R.color.white)
-            WindowInsetsControllerCompat(this, decorView).isAppearanceLightStatusBars = true
-        }
         if (voiceSettingsOpened) {
             voiceSettingsOpened = false
             speaker?.shutdown()
@@ -99,14 +94,6 @@ class OnboardingFragment : Fragment() {
                 showCameraError()
             }
         }
-    }
-
-    override fun onPause() {
-        requireActivity().window.apply {
-            statusBarColor = requireContext().getColor(R.color.mp_color_primary)
-            WindowInsetsControllerCompat(this, decorView).isAppearanceLightStatusBars = false
-        }
-        super.onPause()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
