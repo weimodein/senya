@@ -6,8 +6,8 @@ AppBuildersPH Hackathon 2026 · Theme: Local AI
 
 ## Team
 
-- TODO — Person A (Android)
-- TODO — Person B (Platform + ML)
+- Jhoren Tuazon
+- Kershey Tumbagahan
 
 ## Demo
 
@@ -274,8 +274,8 @@ A team member recorded their own FSL fingerspelling clips on a phone. Every clip
   - No AI API calls anywhere.
 - **Existing code and assets:**
   - `google-ai-edge/mediapipe-samples` hand landmarker Android example (Apache 2.0), used as the app's starting point; see [`android/README.md`](android/README.md).
-  - FSL alphabet reference: TODO (cite it).
-- **AI development tools:** Claude Code (design spec, planning, coding help). TODO: list any others used.
+  - FSL alphabet reference: FSL Buddy.
+- **AI development tools:** Claude Code/Codex (design spec, planning, coding help).
 
 ## Repository layout
 
