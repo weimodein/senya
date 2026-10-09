@@ -50,4 +50,20 @@
         <item name="android:textColor">@android:color/white</item>
         <item name="android:textSize">13sp</item>
     </style>
+
+    <style name="OnboardingTitle">
+        <item name="android:textColor">@color/onboarding_ink</item>
+        <item name="android:textSize">24sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="OnboardingBody">
+        <item name="android:textColor">@color/onboarding_muted</item>
+        <item name="android:textSize">16sp</item>
+    </style>
+
+    <style name="OnboardingLabel">
+        <item name="android:textColor">@color/onboarding_ink</item>
+        <item name="android:textSize">16sp</item>
+    </style>
 </resources>

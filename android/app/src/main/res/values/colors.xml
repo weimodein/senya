@@ -28,4 +28,8 @@
     <color name="icActive">#FFFFFFFF</color>
     <color name="icFocused">#DDFFFFFF</color>
     <color name="icPressed">#AAFFFFFF</color>
+    <color name="onboarding_ink">#111827</color>
+    <color name="onboarding_muted">#53627C</color>
+    <color name="onboarding_blue">#1269CE</color>
+    <color name="onboarding_rule">#E3E8F0</color>
 </resources>

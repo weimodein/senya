@@ -28,6 +28,12 @@ Xiaomi phones need Developer options → "Install via USB" turned on before `ins
   checks sha256 and the golden files, and keeps the current model if anything fails.
 - With no bundled model the app shows "No model loaded".
 
+## First launch
+
+The app shows a four-step onboarding flow before opening the camera: welcome, camera permission, offline voice, and readiness. Camera access is requested only when the user taps **Allow camera**; skipping it lets them review the remaining steps, but they must grant it before signing. The voice step lists installed offline Filipino or English voices, lets the user test and select one, and links to device voice settings. The selected voice is reused in the camera screen.
+
+The readiness screen checks the actual local model and voice state. The bundled v0 model in this checkout is a demo fixture, not evidence of FSL recognition. Once onboarding is complete, later launches go straight to the camera, or to the permission explanation if camera access was revoked.
+
 ## Mock server
 `cd fixtures/mock_server && python -m http.server 8000`, then set the app's server URL (the gear icon) to
 `http://<laptop-LAN-IP>:8000`.
