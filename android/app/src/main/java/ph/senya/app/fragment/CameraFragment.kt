@@ -155,7 +155,7 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
             loadCurrentModel()
             checkForUpdate(manual = false)
         }
-        speaker = Speaker(requireContext()) { message -> toast(message) }
+        speaker = Speaker(requireContext(), onStatus = { message -> toast(message) })
         binding.speakButton.isEnabled = true
         binding.speakButton.setOnClickListener { speaker?.speak(transcript.text) }
     }
