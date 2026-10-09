@@ -44,8 +44,10 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
+import androidx.camera.core.UseCaseGroup
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
+import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import androidx.core.widget.ImageViewCompat
 import androidx.fragment.app.Fragment
@@ -259,6 +261,14 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
         val cameraProvider = cameraProvider ?: throw IllegalStateException("Camera initialization failed.")
         val cameraSelector = CameraSelector.Builder().requireLensFacing(cameraFacing).build()
 
+        // The ViewPort makes Preview and ImageAnalysis share the visible crop, so hands outside the preview aren't detected.
+        // It is null until the view is laid out: bind again then, instead of binding without it.
+        val viewPort = binding.viewFinder.viewPort
+        if (viewPort == null) {
+            binding.viewFinder.doOnLayout { if (_binding != null) bindCameraUseCases() }
+            return
+        }
+
         preview = Preview.Builder().setTargetAspectRatio(AspectRatio.RATIO_4_3)
             .setTargetRotation(binding.viewFinder.display.rotation)
             .build()
@@ -277,7 +287,12 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
 
         cameraProvider.unbindAll()
         try {
-            camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalyzer)
+            val group = UseCaseGroup.Builder()
+                .setViewPort(viewPort)
+                .addUseCase(preview!!)
+                .addUseCase(imageAnalyzer!!)
+                .build()
+            camera = cameraProvider.bindToLifecycle(this, cameraSelector, group)
             preview?.setSurfaceProvider(binding.viewFinder.surfaceProvider)
         } catch (exc: Exception) {
             Log.e(TAG, "Use case binding failed", exc)
@@ -289,7 +304,7 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
     private fun detectHand(imageProxy: ImageProxy) {
         if (!loggedSize) {
             loggedSize = true
-            Log.d(TAG, "perf analysis frame ${imageProxy.width}x${imageProxy.height} rotation=${imageProxy.imageInfo.rotationDegrees}")
+            Log.d(TAG, "perf analysis frame ${imageProxy.width}x${imageProxy.height} rotation=${imageProxy.imageInfo.rotationDegrees} cropRect=${imageProxy.cropRect}")
         }
         handLandmarkerHelper.detectLiveStream(
             imageProxy = imageProxy,

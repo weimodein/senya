@@ -162,25 +162,38 @@ class HandLandmarkerHelper(
                 imageProxy.height,
                 Bitmap.Config.ARGB_8888
             )
+        val rotationDegrees = imageProxy.imageInfo.rotationDegrees
+        val cropRect = imageProxy.cropRect
         imageProxy.use { bitmapBuffer.copyPixelsFromBuffer(imageProxy.planes[0].buffer) }
         imageProxy.close()
 
+        // Keep only what the preview shows (the use case ViewPort's crop), so hands outside the frame aren't detected
+        val cropX = cropRect.left.coerceIn(0, bitmapBuffer.width - 1)
+        val cropY = cropRect.top.coerceIn(0, bitmapBuffer.height - 1)
+        val cropW = (cropRect.right.coerceIn(cropX + 1, bitmapBuffer.width) - cropX)
+        val cropH = (cropRect.bottom.coerceIn(cropY + 1, bitmapBuffer.height) - cropY)
+        val visible = if (cropRect.isEmpty || (cropW == bitmapBuffer.width && cropH == bitmapBuffer.height)) {
+            bitmapBuffer
+        } else {
+            Bitmap.createBitmap(bitmapBuffer, cropX, cropY, cropW, cropH)
+        }
+
         val matrix = Matrix().apply {
             // Rotate the frame received from the camera to be in the same direction as it'll be shown
-            postRotate(imageProxy.imageInfo.rotationDegrees.toFloat())
+            postRotate(rotationDegrees.toFloat())
 
             // flip image if user use front camera
             if (isFrontCamera) {
                 postScale(
                     -1f,
                     1f,
-                    imageProxy.width.toFloat(),
-                    imageProxy.height.toFloat()
+                    visible.width.toFloat(),
+                    visible.height.toFloat()
                 )
             }
         }
         val rotatedBitmap = Bitmap.createBitmap(
-            bitmapBuffer, 0, 0, bitmapBuffer.width, bitmapBuffer.height,
+            visible, 0, 0, visible.width, visible.height,
             matrix, true
         )
 
