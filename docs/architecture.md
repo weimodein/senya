@@ -100,10 +100,11 @@ senya/
     README.md                  where to change what (look vs. logic), for whoever restyles the panel
     src/api/client.js          the panel's only HTTP client: axios + JWT, logs out on 401
     src/api/index.js           auth, signs, models calls; training thresholds
-    src/context/AuthContext.jsx  login / session
+    src/context/               AuthContext (login / session); UploadQueueContext + TrainingContext: app-wide, so uploads
+                               and training keep going (and stay visible) while the admin changes pages
     src/hooks/                 ALL state and actions: useSigns, useSign (+ upload queue), useModels (+ polling)
     src/components/ui.jsx      ALL shared styling: Button, Input, Card, Badge, ProgressBar, … (plain Tailwind)
-    src/components/            Layout (top bar), ProtectedRoute
+    src/components/            Layout (top bar), JobDock (bottom-right upload / training banners), ProtectedRoute
     src/pages/                 markup only: Login, Signs, SignDetail, Models
 ```
 

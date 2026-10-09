@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { models as api, signs as signsApi, MIN_STATIC_SAMPLES } from "../api/index.js";
 import { errorMessage } from "../api/client.js";
+import { useTraining } from "../context/TrainingContext.jsx";
 
 /**
  * Model versions: training, deploying, rolling back. Pages/Models.jsx only renders what this returns.
- * While a version is training, this polls every 2 s so its progress bar moves.
+ * The run in progress is tracked app-wide (TrainingContext), so it keeps updating on every page.
  */
 export default function useModels() {
+  const trainingJob = useTraining();
   const [models, setModels] = useState(null); // null = still loading
   const [readyLetters, setReadyLetters] = useState(0);
   const [error, setError] = useState("");
@@ -22,27 +24,21 @@ export default function useModels() {
       setError(errorMessage(err));
     }
   }, []);
+  // Refetch on open and whenever the training tracker sees a change (progress, finish).
   useEffect(() => {
     reload();
-  }, [reload]);
+  }, [reload, trainingJob.changes]);
 
-  const live = models?.find((m) => m.status === "deployed") || null;
-  const training = models?.find((m) => m.status === "training") || null;
+  const training = trainingJob.training;
   // If the backend couldn't reach the ML service, the run's message says how to finish it from the laptop.
   const trainingStuck = Boolean(training?.message?.includes("run-job"));
-
-  useEffect(() => {
-    if (!training) return;
-    const timer = setInterval(reload, 2000);
-    return () => clearInterval(timer);
-  }, [training?.id, reload]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Each action returns an error message or "".
   const run = async (fn) => {
     setBusy(true);
     try {
       await fn();
-      await reload();
+      await Promise.all([reload(), trainingJob.refresh()]);
       return "";
     } catch (err) {
       return errorMessage(err);
@@ -53,14 +49,14 @@ export default function useModels() {
 
   return {
     models,
-    live,
+    live: models?.find((m) => m.status === "deployed") || null,
     training,
     trainingStuck,
     readyLetters,
     canTrain: !training && readyLetters >= 2,
     busy,
     error,
-    train: () => run(api.train),
+    train: trainingJob.startTraining,
     deploy: (id) => run(() => api.deploy(id)),
     remove: (id) => run(() => api.remove(id)),
   };

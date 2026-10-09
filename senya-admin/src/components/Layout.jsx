@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import JobDock from "./JobDock.jsx";
 
 const linkClass = ({ isActive }) => `text-sm font-medium ${isActive ? "text-blue-600" : "text-gray-600 hover:text-gray-900"}`;
 
@@ -25,6 +26,7 @@ export default function Layout() {
       <main className="mx-auto max-w-5xl px-4 py-6">
         <Outlet />
       </main>
+      <JobDock />
     </div>
   );
 }

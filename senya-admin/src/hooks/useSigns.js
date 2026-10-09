@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { signs as api, targetFor } from "../api/index.js";
 import { errorMessage } from "../api/client.js";
+import { useUploadQueue } from "../context/UploadQueueContext.jsx";
 
 /** The list of signs, plus adding a new one. Pages/Signs.jsx only renders what this returns. */
 export default function useSigns() {
+  const { finishedCount } = useUploadQueue();
   const [signs, setSigns] = useState(null); // null = still loading
   const [error, setError] = useState("");
 
@@ -17,7 +19,8 @@ export default function useSigns() {
       })
       .catch((err) => setError(errorMessage(err)));
   }, []);
-  useEffect(reload, [reload]);
+  // Refetch on open, and whenever a queued upload finishes (sample counts change).
+  useEffect(reload, [reload, finishedCount]);
 
   /** label: "A", kind: "static" | "motion", startShapes: "I" (motion only). Returns an error message or "". */
   const addSign = async ({ label, kind, startShapes }) => {
