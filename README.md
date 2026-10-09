@@ -5,10 +5,12 @@
 AppBuildersPH Hackathon 2026 · Theme: Local AI
 
 ## Team
+
 - TODO — Person A (Android)
 - TODO — Person B (Platform + ML)
 
 ## Demo
+
 - Demo video: TODO
 - X / LinkedIn post: TODO
 
@@ -22,6 +24,7 @@ AppBuildersPH Hackathon 2026 · Theme: Local AI
 4. **Turn on airplane mode** and fingerspell. Translation, word suggestions and speech all keep working.
 
 **Signing tips**
+
 - Keep one hand fully in view, with some space around it.
 - **Held letters:** raise your hand, hold the letter still for about a second, and the letter is committed.
 - **J and Z:** these move. For J, start from the letter **I** and trace the J once; for Z, trace the Z once with your index finger.
@@ -34,6 +37,7 @@ The app downloads newer models from our deployed server, **https://senya-k2wd.on
 ---
 
 ## Why does Senya benefit from running AI locally?
+
 - **Privacy:** the camera sees the signer's face, home and hands. Frames never leave the phone; only the translated text exists. The training platform also deletes uploaded videos right after extracting hand landmarks.
 - **Works without signal:** Deaf and hard-of-hearing users need to communicate at clinics, offices and stores, including places with weak or no mobile data. Senya works in airplane mode.
 - **Real time:** on-device inference runs at 15+ fps with no network round trip, so feedback is immediate.
@@ -41,11 +45,11 @@ The app downloads newer models from our deployed server, **https://senya-k2wd.on
 
 ## What runs locally
 
-| Where | What runs there |
-|---|---|
-| **On the phone, offline** | CameraX camera feed → **MediaPipe Hand Landmarker** (21 hand points per frame) → Senya's **static letter classifier** (MLP, TFLite) and **motion classifier** for J (1D CNN, TFLite) → prediction stabilizer → word suggestions → Android **offline text-to-speech** |
-| **On the team's laptop** (`senya-ml`) | Landmark extraction from uploaded training clips (OpenCV + MediaPipe) and model training (TensorFlow → TFLite). Clips are deleted right after extraction |
-| **In the cloud** (Render + Supabase) | Storage and delivery only: the REST API, the admin panel, hand-landmark samples and model files. **No AI runs here, and no video is stored** |
+| Where                                 | What runs there                                                                                                                                                                                                                                                      |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **On the phone, offline**             | CameraX camera feed → **MediaPipe Hand Landmarker** (21 hand points per frame) → Senya's **static letter classifier** (MLP, TFLite) and **motion classifier** for J (1D CNN, TFLite) → prediction stabilizer → word suggestions → Android **offline text-to-speech** |
+| **On the team's laptop** (`senya-ml`) | Landmark extraction from uploaded training clips (OpenCV + MediaPipe) and model training (TensorFlow → TFLite). Clips are deleted right after extraction                                                                                                             |
+| **In the cloud** (Render + Supabase)  | Storage and delivery only: the REST API, the admin panel, hand-landmark samples and model files. **No AI runs here, and no video is stored**                                                                                                                         |
 
 **What needs internet:** only downloading a newer model and, once, an offline voice for speech. Translation never does.
 
@@ -71,6 +75,7 @@ The app downloads newer models from our deployed server, **https://senya-k2wd.on
 ```
 
 **The pipeline**
+
 1. **Collect:** in the admin panel, create a sign (e.g. `A`, static; `J`, motion, starting from letter `I`) and upload phone clips.
 2. **Extract (laptop):** the ML service finds the hand in every frame and keeps only the landmarks. For a static letter it keeps the held frames. For a motion letter it keeps the one movement, and the raise and lower become "not a sign" (`_none`) examples. The video is deleted.
 3. **Train (laptop):** one click trains both classifiers, checks the exported TFLite files against Keras, and uploads them to the backend. Progress shows live in the panel.
@@ -78,13 +83,13 @@ The app downloads newer models from our deployed server, **https://senya-k2wd.on
 5. **Update (phone):** the app downloads the new version, verifies every file (sha256 plus golden test inputs), and switches over. If anything fails, it keeps its current model.
 6. **Translate (phone):** everything happens on-device from then on.
 
-| Part | Folder | Built with |
-|---|---|---|
-| Android app | [`android/`](android/) | Kotlin, CameraX, MediaPipe Tasks, TensorFlow Lite, Android TTS |
-| ML service | [`senya-ml/`](senya-ml/) | Python 3.10, FastAPI, OpenCV, MediaPipe 0.10.35, TensorFlow 2.20 |
-| Backend | [`senya-backend/`](senya-backend/) | Node.js 22, Express, Sequelize, JWT, bcrypt, multer |
-| Admin panel | [`senya-admin/`](senya-admin/) | React, Vite, Tailwind CSS, axios |
-| Database | — | PostgreSQL (Supabase in production; any local PostgreSQL works) |
+| Part        | Folder                             | Built with                                                       |
+| ----------- | ---------------------------------- | ---------------------------------------------------------------- |
+| Android app | [`android/`](android/)             | Kotlin, CameraX, MediaPipe Tasks, TensorFlow Lite, Android TTS   |
+| ML service  | [`senya-ml/`](senya-ml/)           | Python 3.10, FastAPI, OpenCV, MediaPipe 0.10.35, TensorFlow 2.20 |
+| Backend     | [`senya-backend/`](senya-backend/) | Node.js 22, Express, Sequelize, JWT, bcrypt, multer              |
+| Admin panel | [`senya-admin/`](senya-admin/)     | React, Vite, Tailwind CSS, axios                                 |
+| Database    | —                                  | PostgreSQL (Supabase in production; any local PostgreSQL works)  |
 
 Details: [`docs/architecture.md`](docs/architecture.md) covers every API, the database and the flows. [`CONTRACT.md`](CONTRACT.md) freezes the model files and the endpoints the app uses.
 
@@ -95,6 +100,7 @@ Details: [`docs/architecture.md`](docs/architecture.md) covers every API, the da
 This runs the database, ML service, backend and admin panel locally, and points a debug build of the app at them. Commands are for Windows with Git Bash. On macOS or Linux, use `.venv/bin/` instead of `.venv/Scripts/`.
 
 ### Prerequisites
+
 - **Git**
 - **Node.js 22** and npm
 - **Python 3.10**. The pinned TensorFlow 2.20 + MediaPipe 0.10.35 pair is tested on 3.10.
@@ -103,24 +109,30 @@ This runs the database, ML service, backend and admin panel locally, and points 
 - Some fingerspelling clips (phone videos, any common format such as `.mp4` or `.mov`), or photos for static letters
 
 ### 1. Clone
+
 ```bash
 git clone https://github.com/weimodein/senya.git
 cd senya
 ```
 
 ### 2. Database
+
 Create an empty database. The backend creates every table itself on start (`senya-backend/migrations/*.sql`).
+
 ```bash
 createdb senya        # or: psql -c "CREATE DATABASE senya;"
 ```
 
 ### 3. Shared secrets
+
 Make an API key that the backend and the ML service will share:
+
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
 ### 4. ML service (port 8001)
+
 ```bash
 cd senya-ml
 python -m venv .venv
@@ -129,25 +141,34 @@ curl -sSL -o app/models/hand_landmarker.task \
   https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task
 cp .env.example .env
 ```
+
 Edit `senya-ml/.env`:
+
 ```
 BACKEND_URL=http://localhost:8000
 ML_API_KEY=<the key from step 3>
 ```
+
 Start it, and leave it running:
+
 ```bash
 .venv/Scripts/python -m uvicorn app.main:app --port 8001
 ```
+
 Check: `curl http://localhost:8001/health` → `{"status":"ok","training":null}`
 
 ### 5. Backend (port 8000)
+
 In a new terminal:
+
 ```bash
 cd senya-backend
 npm ci
 cp .env.example .env
 ```
+
 Edit `senya-backend/.env`:
+
 ```
 DATABASE_URL=postgres://<user>:<password>@localhost:5432/senya
 PORT=8000
@@ -158,25 +179,32 @@ ML_SERVICE_URL=http://localhost:8001
 ML_API_KEY=<the key from step 3>
 ALLOWED_ORIGINS=http://localhost:5173
 ```
+
 Start it, and leave it running:
+
 ```bash
 npm start
 ```
+
 Check: `curl http://localhost:8000/health` → `{"ok":true}`. Optional: `npm run seed:v0` publishes a dummy demo model (letters A, B, C) to test the app connection before you train anything.
 
 ### 6. Admin panel (port 5173)
+
 In a new terminal:
+
 ```bash
 cd senya-admin
 npm ci
 npm run dev
 ```
+
 Open **http://localhost:5173** and log in with `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
 
 ### 7. Collect data, train, deploy
+
 1. **Signs → Add a sign.**
-   - **Static letters** (e.g. `A`, `B`): kind *Static*.
-   - **J**: kind *Motion*, "Starts from letter" `I`.
+   - **Static letters** (e.g. `A`, `B`): kind _Static_.
+   - **J**: kind _Motion_, "Starts from letter" `I`.
 2. **Upload clips** on each sign's page.
    - **Static:** raise the hand, hold the letter still for about a second, lower it. Only the held part is kept.
    - **Motion (J):** raise the hand, sign J once, lower it. One clip = one sample, and the raise and lower automatically become `_none` samples.
@@ -187,6 +215,7 @@ Open **http://localhost:5173** and log in with `ADMIN_USERNAME` / `ADMIN_PASSWOR
 5. **Deploy** the trained version.
 
 ### 8. Run the app against your local server
+
 1. Plug in the phone (USB debugging on), then forward the backend port:
    ```bash
    adb reverse tcp:8000 tcp:8000
@@ -207,28 +236,32 @@ Open **http://localhost:5173** and log in with `ADMIN_USERNAME` / `ADMIN_PASSWOR
 Debug builds allow plain HTTP and have a server override in Settings. Release builds use HTTPS only.
 
 ### 9. Optional: deploy it like we did
+
 Render (backend + admin panel), Supabase (database) and an ngrok static domain for the laptop's ML service: see [`docs/deploy.md`](docs/deploy.md). To build a release APK against your own server, set `senya.serverUrl=https://<your-service>.onrender.com` in `android/local.properties`, then run `./gradlew assembleRelease` → `app/build/outputs/apk/release/app-release.apk`.
 
 ---
 
 ## Tests
-| Part | Command (from the folder) | Notes |
-|---|---|---|
-| ML service | `.venv/Scripts/python -m pytest -q` | includes real hand tracks from recorded J clips |
-| Backend | `npm test` | end to end against `DATABASE_URL`, in its own `senya_test` schema, with a stub ML service |
-| Admin panel | `npm run build` | |
-| Android | `./gradlew testDebugUnitTest` | JVM unit tests for the translation logic |
+
+| Part        | Command (from the folder)           | Notes                                                                                     |
+| ----------- | ----------------------------------- | ----------------------------------------------------------------------------------------- |
+| ML service  | `.venv/Scripts/python -m pytest -q` | includes real hand tracks from recorded J clips                                           |
+| Backend     | `npm test`                          | end to end against `DATABASE_URL`, in its own `senya_test` schema, with a stub ML service |
+| Admin panel | `npm run build`                     |                                                                                           |
+| Android     | `./gradlew testDebugUnitTest`       | JVM unit tests for the translation logic                                                  |
 
 ---
 
 ## Dataset
-A team member recorded their own FSL fingerspelling clips on a phone. Every clip is a single take: raise the hand, sign the letter, lower it. No outside dataset was used. Only hand landmarks (21 points per frame) are extracted and stored; videos and faces are never kept.
+
+A team member recorded their own FSL fingerspelling clips on a phone. Every clip is a single take: raise the hand, sign the letter, lower it. Used FSL Buddy as reference for correct letter signs. Only hand landmarks (21 points per frame) are extracted and stored; videos and faces are never kept.
 
 **Limitation:** the model has learned one person's hand, so it may recognise other signers less reliably. Recording more signers is the main next step for accuracy.
 
 ---
 
 ## Disclosures
+
 - **Models used:**
   - MediaPipe Hand Landmarker (`hand_landmarker.task`, Google, pretrained).
   - Senya's own static classifier (MLP) and motion classifier (1D CNN), trained during the sprint on clips a team member recorded of themselves.
@@ -245,18 +278,20 @@ A team member recorded their own FSL fingerspelling clips on a phone. Every clip
 - **AI development tools:** Claude Code (design spec, planning, coding help). TODO: list any others used.
 
 ## Repository layout
-| Path | What |
-|---|---|
-| `android/` | Android app |
-| `senya-backend/` | REST API: Express + Sequelize on PostgreSQL |
-| `senya-admin/` | Admin panel: React + Vite + Tailwind |
-| `senya-ml/` | ML service: FastAPI + MediaPipe + TensorFlow (extraction, training → TFLite) |
-| `fixtures/` | Dummy v0 model + mock server |
-| `release/` | The release APK |
-| `SENYA-brand-final/` | Logo, app icon and palette |
-| `CONTRACT.md` | Model files and the app-facing endpoints |
-| `docs/` | Design spec, architecture, deployment |
-| `render.yaml` | Render blueprint (one web service: backend + built admin panel) |
+
+| Path                 | What                                                                         |
+| -------------------- | ---------------------------------------------------------------------------- |
+| `android/`           | Android app                                                                  |
+| `senya-backend/`     | REST API: Express + Sequelize on PostgreSQL                                  |
+| `senya-admin/`       | Admin panel: React + Vite + Tailwind                                         |
+| `senya-ml/`          | ML service: FastAPI + MediaPipe + TensorFlow (extraction, training → TFLite) |
+| `fixtures/`          | Dummy v0 model + mock server                                                 |
+| `release/`           | The release APK                                                              |
+| `SENYA-brand-final/` | Logo, app icon and palette                                                   |
+| `CONTRACT.md`        | Model files and the app-facing endpoints                                     |
+| `docs/`              | Design spec, architecture, deployment                                        |
+| `render.yaml`        | Render blueprint (one web service: backend + built admin panel)              |
 
 ## License
+
 Apache License 2.0 — see `LICENSE` and `NOTICE`. The Android app started from the MediaPipe hand landmarker sample (also Apache 2.0); see `android/README.md`.
