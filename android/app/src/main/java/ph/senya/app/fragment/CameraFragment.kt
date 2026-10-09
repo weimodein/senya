@@ -292,7 +292,11 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
                 applyBundle(result.bundle)
                 toast("Updated to model v${result.bundle.version}")
             }
-            is ModelUpdater.Result.UpToDate -> if (manual) toast("Model is up to date")
+            is ModelUpdater.Result.UpToDate -> {
+                // Onboarding's check may have installed a newer version after this screen loaded the old one
+                if (bundle?.version != repository.installedVersion) loadCurrentModel()
+                if (manual) toast("Model is up to date")
+            }
             is ModelUpdater.Result.NoModelPublished -> if (manual) toast("The server has no published model yet")
             is ModelUpdater.Result.Failed -> toast("Update failed: ${result.message}. Keeping the current model.")
         }

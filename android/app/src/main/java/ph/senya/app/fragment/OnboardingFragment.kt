@@ -19,7 +19,9 @@ import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import ph.senya.app.R
 import ph.senya.app.data.ModelRepository
+import ph.senya.app.data.ModelUpdater
 import ph.senya.app.databinding.FragmentOnboardingBinding
+import ph.senya.app.ml.ModelBundle
 import ph.senya.app.speech.Speaker
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -252,17 +254,31 @@ class OnboardingFragment : Fragment() {
         val repository = ModelRepository(requireContext().applicationContext)
         modelExecutor = Executors.newSingleThreadExecutor()
         modelExecutor?.execute {
-            val version = runCatching { repository.loadCurrent().bundle.use { it.version } }
-            activity?.runOnUiThread {
-                val view = _binding ?: return@runOnUiThread
-                modelChecked = true
-                modelLoaded = version.isSuccess
-                view.onboardingModelStatus.text = if (version.isFailure) getString(R.string.onboarding_model_missing)
-                    else if (version.getOrNull() == 0) getString(R.string.onboarding_model_demo)
-                    else getString(R.string.onboarding_model_loaded, version.getOrThrow())
-                view.onboardingDemoNote.visibility = if (version.getOrNull() == 0) View.VISIBLE else View.GONE
-                updateReadyBody()
+            showModel(runCatching { repository.loadCurrent().bundle.use { it.summary() } })
+            // A fresh install only has the demo model; fetch the published one now if we're online
+            val update = runCatching { repository.checkForUpdate() }.getOrNull()
+            if (update is ModelUpdater.Result.Updated) showModel(Result.success(update.bundle.use { it.summary() }))
+        }
+    }
+
+    private data class ModelSummary(val version: Int, val letters: String)
+
+    private fun ModelBundle.summary() =
+        ModelSummary(version, (static.labels + motion?.labels.orEmpty()).joinToString(" "))
+
+    private fun showModel(model: Result<ModelSummary>) {
+        activity?.runOnUiThread {
+            val view = _binding ?: return@runOnUiThread
+            val summary = model.getOrNull()
+            modelChecked = true
+            modelLoaded = summary != null
+            view.onboardingModelStatus.text = when {
+                summary == null -> getString(R.string.onboarding_model_missing)
+                summary.version == 0 -> getString(R.string.onboarding_model_demo)
+                else -> getString(R.string.onboarding_model_loaded, summary.version, summary.letters)
             }
+            view.onboardingDemoNote.visibility = if (summary?.version == 0) View.VISIBLE else View.GONE
+            updateReadyBody()
         }
     }
 

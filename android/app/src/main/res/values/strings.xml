@@ -73,7 +73,7 @@
     <string name="flip_camera">Switch camera</string>
     <string name="onboarding_back">Previous step</string>
     <string name="onboarding_welcome_title">Sign letters. Build words.</string>
-    <string name="onboarding_welcome_body">Filipino fingerspelling to text and speech.\nStatic letters plus J and Z.</string>
+    <string name="onboarding_welcome_body">Filipino fingerspelling to text and speech, right on this phone.</string>
     <string name="onboarding_example_letters">M  A  G  A  N  D  A</string>
     <string name="onboarding_example_word">MAGANDA</string>
     <string name="onboarding_get_started">Get started</string>
@@ -105,7 +105,7 @@
     <string name="onboarding_ready_no_voice_title">Sign offline, add voice later</string>
     <string name="onboarding_ready_badge">Offline · on-device</string>
     <string name="onboarding_model_checking">Checking the bundled model…</string>
-    <string name="onboarding_model_loaded">Model v%1$d · loaded</string>
+    <string name="onboarding_model_loaded">Model v%1$d · letters %2$s</string>
     <string name="onboarding_model_demo">Bundled demo model v0 · loaded</string>
     <string name="onboarding_model_missing">No usable model loaded</string>
     <string name="onboarding_voice_ready">Offline voice · ready</string>
