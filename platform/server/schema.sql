@@ -90,3 +90,14 @@ CREATE TABLE IF NOT EXISTS model_files (
         'model.tflite', 'labels.json', 'golden.json',
         'motion.tflite', 'motion_labels.json', 'motion_config.json', 'motion_golden.json'))
 );
+
+-- Supabase exposes every public table through its REST API to anyone holding the (public) anon key unless row-level
+-- security is on. Enabling it with NO policies blocks that API completely. Our server connects with the database
+-- owner role (bypasses RLS), so it keeps working. Harmless on plain PostgreSQL.
+ALTER TABLE signs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE uploads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE samples ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sequences ENABLE ROW LEVEL SECURITY;
+ALTER TABLE train_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE models ENABLE ROW LEVEL SECURITY;
+ALTER TABLE model_files ENABLE ROW LEVEL SECURITY;
