@@ -303,20 +303,36 @@
             android:text="@string/transcript_label"
             android:textSize="14sp" />
 
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="88dp">
+
+        <TextView
+            android:id="@+id/transcript_placeholder"
+            android:layout_width="match_parent"
+            android:layout_height="88dp"
+            android:fontFamily="sans-serif-black"
+            android:gravity="bottom|start"
+            android:maxLines="2"
+            android:text="@string/transcript_placeholder"
+            android:textColor="@color/senya_muted"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
         <TextView
             android:id="@+id/transcript"
             android:layout_width="match_parent"
             android:layout_height="88dp"
             android:gravity="bottom|start"
-            android:hint="@string/transcript_placeholder"
             android:maxLines="2"
             android:textColor="@color/senya_ink"
-            android:textColorHint="@color/senya_muted"
             android:fontFamily="sans-serif-black"
             android:textStyle="bold"
             app:autoSizeMaxTextSize="56sp"
             app:autoSizeMinTextSize="22sp"
             app:autoSizeTextType="uniform" />
+
+        </FrameLayout>
 
         <LinearLayout
             android:id="@+id/suggestions"

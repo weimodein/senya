@@ -421,6 +421,7 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
     private fun renderTranscript() {
         val b = _binding ?: return
         val text = transcript.text
+        b.transcriptPlaceholder.isVisible = text.isEmpty()
         if (text.isEmpty()) {
             b.transcript.text = ""
             return
