@@ -52,15 +52,26 @@ class ModelRepository(context: Context) {
         return Loaded(ModelBundle.load(0, AssetModelSource(appContext.assets), TfliteModel::fromBytes), message)
     }
 
-    /** Blocks on the network; call off the main thread. */
-    fun checkForUpdate(): ModelUpdater.Result = updater.check(serverUrl, installedVersion).also {
+    /** Blocks on the network; call off the main thread. See [ModelUpdater.check] for [force], [onStep] and [isCancelled]. */
+    fun checkForUpdate(
+        force: Boolean = false,
+        onStep: (ModelUpdater.Step) -> Unit = {},
+        isCancelled: () -> Boolean = { false },
+    ): ModelUpdater.Result = updater.check(serverUrl, installedVersion, force, onStep, isCancelled).also {
         if (it is ModelUpdater.Result.Updated) prefs.edit().putInt(KEY_VERSION, it.bundle.version).apply()
+        if (it !is ModelUpdater.Result.Failed && it !is ModelUpdater.Result.Cancelled) {
+            prefs.edit().putLong(KEY_LAST_CHECK, System.currentTimeMillis()).apply()
+        }
     }
+
+    /** When the server last answered an update check, or 0 if it never has. */
+    val lastCheckMs: Long get() = prefs.getLong(KEY_LAST_CHECK, 0L)
 
     companion object {
         private const val KEY_LEGACY_SERVER_URL = "server_url"
         private const val KEY_SERVER_OVERRIDE = "server_override"
         private const val KEY_SPEAK_ON_SPACE = "speak_on_space"
         private const val KEY_VERSION = "installed_version"
+        private const val KEY_LAST_CHECK = "last_update_check_ms"
     }
 }
