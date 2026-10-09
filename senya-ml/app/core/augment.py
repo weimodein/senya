@@ -1,4 +1,6 @@
 """Augmentation (spec §4.3). Works on arrays shaped [..., 21, 3] reshaped from/to the flat 63 floats."""
+import math
+
 import numpy as np
 
 from . import contract
@@ -60,3 +62,11 @@ def augment_sequence(raw_to_array, seq, rng, copies=3):
         arr = rotate_scale_noise(arr, rng)
         out.append(mirror_x(arr) if rng.random() < 0.5 else arr)
     return out
+
+
+def copies_for(n_items: int, base: int = 3, floor: int = 40) -> int:
+    """Random variants per sequence so a label with few training sequences still gets about `floor` arrays
+    (each sequence also gives a plain and a mirrored one). Never fewer than `base`."""
+    if n_items <= 0:
+        return base
+    return max(base, math.ceil(floor / n_items) - 2)

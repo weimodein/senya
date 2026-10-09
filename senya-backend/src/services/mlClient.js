@@ -21,10 +21,12 @@ function toHttpError(err) {
   return new HttpError(502, `ML service error: ${detail}`);
 }
 
-/** One uploaded file -> extracted landmarks. The file is never stored by either service. */
-async function extract(buffer, filename, kind) {
+/** One uploaded file -> extracted landmarks. The file is never stored by either service.
+ *  mode ("single" | "multi") only matters for motion signs; omitted, the ML service uses "multi". */
+async function extract(buffer, filename, kind, mode) {
   const form = new FormData();
   form.append("kind", kind);
+  if (mode) form.append("mode", mode);
   form.append("file", buffer, { filename });
   try {
     const res = await axios.post(`${base()}/extract`, form, {

@@ -3,7 +3,11 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import useSign from "../hooks/useSign.js";
 import { Badge, Button, Card, ConfirmDialog, ErrorText, Input, Loading, PageTitle, ProgressBar, formatDate } from "../components/ui.jsx";
 
-const resultText = (kind, upload) => kind === "static" ? `${upload.samples_added} samples` : `${upload.segments_found} movements`;
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const resultText = (kind, upload) =>
+  kind === "static"
+    ? plural(upload.samples_added, "sample")
+    : plural(upload.segments_found, "movement") + (upload.none_added ? ` (+${upload.none_added} for _none)` : "");
 
 const STATUS_TEXT = {
   waiting: "Waiting",
@@ -27,7 +31,9 @@ function UploadBox({ sign, onFiles }) {
       <span className="mt-3 max-w-md text-sm leading-6 text-[#636B77]">
         {sign.kind === "static"
           ? "Raise your hand, hold A still for about a second, then lower it. Only the held portion is used."
-          : "Repeat the movement a few times with a pause in between. Each repeat becomes one sample."}
+          : sign.label === "_none"
+            ? "Ordinary hand movements that are not signs, with a pause between them. Each movement becomes one sample."
+            : "Raise your hand, sign it once, lower it. One clip = one sample; the raise and lower also teach _none."}
       </span>
       <input type="file" accept={accept} multiple hidden onChange={(event) => { onFiles(event.target.files); event.target.value = ""; }} />
     </label>
@@ -38,7 +44,7 @@ function Guidance({ sign }) {
   return (
     <Card eyebrow="Recording guidance" title={sign.kind === "static" ? "Keep the frame calm" : "Make each movement clear"}>
       <div className="space-y-4 text-sm leading-6 text-[#636B77]">
-        <p>{sign.kind === "static" ? "Raise your hand, hold the sign still for about a second, then lower it. Only the held portion is used." : "Repeat the movement with a pause between repetitions so each segment can be identified."}</p>
+        <p>{sign.kind === "static" ? "Raise your hand, hold the sign still for about a second, then lower it. Only the held portion is used." : sign.label === "_none" ? "Repeat the movement with a pause between repetitions so each segment can be identified." : "Raise your hand, sign it once, then lower it. One clip is one sample; the raise and lower also teach _none."}</p>
         <p>Keep your head, torso, and signing hand in frame.</p>
         <div className="rounded-xl bg-[#F6F7F9] px-4 py-3 text-xs leading-5 text-[#636B77]">
           Videos are processed for hand landmarks. Original clips are not retained by the admin panel.

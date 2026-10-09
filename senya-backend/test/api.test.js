@@ -30,14 +30,18 @@ function startStubMl() {
     next();
   });
   app.post("/extract", require("multer")().single("file"), (req, res) => {
-    mlCalls.push({ path: "/extract", kind: req.body.kind, filename: req.file.originalname });
+    mlCalls.push({ path: "/extract", kind: req.body.kind, filename: req.file.originalname, ...(req.body.mode && { mode: req.body.mode }) });
     if (req.file.originalname.startsWith("empty")) return res.status(422).json({ detail: "no hand found in this clip" });
     if (req.body.kind === "static") {
       return res.json({ kind: "static", no_hand_frames: 2,
         samples: Array.from({ length: 35 }, (_, i) => ({ landmarks: hand(0.3 + i * 0.001), handedness: "Right", frame_index: i, thumb: null })) });
     }
     const frames = Array.from({ length: 30 }, (_, n) => ({ t_ms: 33 * n, landmarks: n === 4 ? null : hand(0.3 + 0.02 * n) }));
-    res.json({ kind: "motion", no_hand_frames: 1, sequences: [{ duration_ms: 957, handedness: "Right", thumb: null, frames }] });
+    const body = { kind: "motion", no_hand_frames: 1, sequences: [{ duration_ms: 957, handedness: "Right", thumb: null, frames }] };
+    if (req.body.mode === "single") {
+      body.none_sequences = [0, 1].map(() => ({ duration_ms: 400, handedness: "Right", thumb: null, frames: frames.slice(5, 17) }));
+    }
+    res.json(body);
   });
   app.post("/train", express.json(), (req, res) => {
     mlCalls.push({ path: "/train", model_id: req.body.model_id });
@@ -140,6 +144,8 @@ test("uploads go through the ML service and land as samples", { skip: SKIP }, as
   assert.equal((await call("POST", `/api/signs/${signs.B.id}/uploads`, { form: fileForm("B_1.mp4") })).status, 201);
   const j = await call("POST", `/api/signs/${signs.J.id}/uploads`, { form: fileForm("J_1.mp4") });
   assert.equal(j.data.segments_found, 1);
+  assert.equal(j.data.none_added, 2);
+  assert.deepEqual(mlCalls.at(-1), { path: "/extract", kind: "motion", filename: "J_1.mp4", mode: "single" });
 
   const empty = await call("POST", `/api/signs/${signs.A.id}/uploads`, { form: fileForm("empty.mp4") });
   assert.equal(empty.status, 422);
@@ -169,7 +175,10 @@ test("the dataset the trainer downloads is grouped by sign and upload", { skip: 
   assert.equal(by.J.uploads[0].sequences[0].frames.length, 30);
   assert.equal(by.J.uploads[0].sequences[0].frames[4].landmarks, null);
   assert.deepEqual(by.J.start_shapes, ["I", "L"]);
-  assert.deepEqual(by._none.uploads, []);
+  // The raise and lower cut from J's clip are _none samples that belong to J's upload.
+  assert.equal(by._none.uploads.length, 1);
+  assert.equal(by._none.uploads[0].id, by.J.uploads[0].id);
+  assert.equal(by._none.uploads[0].sequences.length, 2);
 });
 
 test("train -> callbacks -> trained -> deploy -> the phone sees it", { skip: SKIP }, async () => {
@@ -243,4 +252,21 @@ test("training with the ML service down keeps the row for the CLI fallback", { s
   } finally {
     process.env.ML_SERVICE_URL = saved;
   }
+});
+
+test("a motion clip's raise and lower go to _none and are deleted with the clip", { skip: SKIP }, async () => {
+  const signs = Object.fromEntries((await call("GET", "/api/signs")).data.map((s) => [s.label, s]));
+  const noneCount = async () => (await call("GET", "/api/signs")).data.find((s) => s.label === "_none").sample_count;
+  const before = await noneCount();
+  const up = await call("POST", `/api/signs/${signs.J.id}/uploads`, { form: fileForm("J_2.mov") });
+  assert.equal(up.status, 201);
+  assert.equal(await noneCount(), before + 2);
+  assert.equal((await call("DELETE", `/api/uploads/${up.data.id}`)).status, 204);
+  assert.equal(await noneCount(), before);
+
+  // A clip uploaded to _none itself keeps the old repeat-with-pauses extraction and harvests nothing.
+  const direct = await call("POST", `/api/signs/${signs._none.id}/uploads`, { form: fileForm("none_1.mov") });
+  assert.equal(direct.status, 201);
+  assert.deepEqual(mlCalls.at(-1), { path: "/extract", kind: "motion", filename: "none_1.mov" });
+  assert.equal(direct.data.none_added, 0);
 });
