@@ -236,6 +236,7 @@ test("training with the ML service down keeps the row for the CLI fallback", { s
   try {
     const r = await call("POST", "/api/models/train");
     assert.equal(r.status, 202);
+    assert.equal(r.data.version, 3, "version 2 was deleted, but its number must never be handed out again");
     const row = (await call("GET", `/api/models/${r.data.id}`)).data;
     assert.equal(row.status, "training");
     assert.match(row.message, new RegExp(`run-job ${r.data.id}`));

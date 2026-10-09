@@ -1,6 +1,6 @@
 // Stores a trained version's files and metadata. Used by the ML result callback and the fixture seeder.
 const crypto = require("crypto");
-const { sequelize, ModelVersion, ModelFile } = require("../models/index.js");
+const { sequelize, ModelFile } = require("../models/index.js");
 const { HttpError } = require("../middleware/errors.js");
 const { MODEL_FILES, REQUIRED_FILES, MOTION_FILES } = require("../utils/contract.js");
 
@@ -46,10 +46,10 @@ async function saveTrained(model, files, meta) {
   });
 }
 
-/** Next free version number (versions are never reused, even if a row is deleted later). */
+/** Next version number, from a sequence: never reused, even after the newest version is deleted (002_*.sql). */
 async function nextVersion(transaction) {
-  const max = await ModelVersion.max("version", { transaction });
-  return (Number.isFinite(max) ? max : 0) + 1;
+  const [[row]] = await sequelize.query("SELECT nextval('model_version_seq')::int AS v", { transaction });
+  return row.v;
 }
 
 module.exports = { saveTrained, nextVersion, sha256 };

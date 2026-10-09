@@ -79,6 +79,11 @@ const train = async (req, res) => {
     );
   }
 
+  // Checked before taking a version number, so a refused click doesn't burn one. The unique index on
+  // status = 'training' still catches two clicks racing past this check.
+  if (await ModelVersion.findOne({ where: { status: "training" } })) {
+    throw new HttpError(409, "A model is already training.");
+  }
   let model;
   try {
     model = await sequelize.transaction(async (transaction) =>
