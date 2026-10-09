@@ -47,6 +47,7 @@ import ph.senya.app.ml.Landmarks
 import ph.senya.app.ml.ModelBundle
 import ph.senya.app.ml.ModelLoadException
 import ph.senya.app.ml.TfliteModel
+import ph.senya.app.speech.Speaker
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -80,6 +81,7 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
     @Volatile private var modelLabel = ""
     /** While now < this, the chip keeps showing the motion letter just committed. */
     private var motionShownUntilMs = 0L
+    private var speaker: Speaker? = null
 
     override fun onResume() {
         super.onResume()
@@ -106,6 +108,8 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
         engine.setModels(EngineModels(static = null))
         modelExecutor.execute { bundle?.close(); bundle = null }
         modelExecutor.shutdown()
+        speaker?.shutdown()
+        speaker = null
         _binding = null
         super.onDestroyView()
         backgroundExecutor.shutdown()
@@ -137,6 +141,9 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
         renderTranscript()
         showModelLabel(getString(R.string.no_model))
         modelExecutor.execute { loadBundledModel() }
+        speaker = Speaker(requireContext()) { message -> toast(message) }
+        binding.speakButton.isEnabled = true
+        binding.speakButton.setOnClickListener { speaker?.speak(transcript.text) }
     }
 
     // Initialize CameraX, and prepare to bind the camera use cases
