@@ -12,6 +12,7 @@ import base64
 import math
 import os
 import tempfile
+from dataclasses import dataclass
 from typing import Optional
 
 import cv2
@@ -21,7 +22,7 @@ from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision
 
 from app.core import contract
-from app.services.segmenter import segment_clip
+from app.services.segmenter import DEFAULT_CONFIG as SEGMENTER_DEFAULTS, Segment, segment_clip
 
 MODEL_PATH = os.getenv("HAND_LANDMARKER_MODEL",
                        os.path.join(os.path.dirname(__file__), "..", "models", "hand_landmarker.task"))
@@ -38,6 +39,9 @@ TRIM_PAD_MS = int(os.getenv("TRIM_PAD_MS", 150))
 HOLD_SPEED = float(os.getenv("HOLD_SPEED", 0.5))
 MIN_HOLD_MS = int(os.getenv("MIN_HOLD_MS", 300))
 HOLD_TRIM_MS = int(os.getenv("HOLD_TRIM_MS", 100))
+# Motion signs, one per clip: the wrist rising (or dropping) faster than this, in hand sizes per second, is the
+# raise (or the lower) around the sign.
+RAISE_SPEED = float(os.getenv("RAISE_SPEED", 0.5))
 MAX_SIDE = int(os.getenv("EXTRACT_MAX_SIDE", 640))
 DEFAULT_FPS = 30.0
 THUMB_SIZE = 72
@@ -137,6 +141,15 @@ def _hand_size(p) -> float:
     return max(math.hypot(p[i * 3] - p[0], p[i * 3 + 1] - p[1]) for i in range(1, contract.POINTS))
 
 
+def _smooth3(raw: list) -> list:
+    """Mean over each value and its neighbours; None where any of them is None."""
+    out = []
+    for i in range(len(raw)):
+        window = raw[max(0, i - 1):i + 2]
+        out.append(None if any(v is None for v in window) else sum(window) / len(window))
+    return out
+
+
 def _speeds(frames: list) -> list:
     """Hand speed per frame, in hand sizes per second (the segmenter's unit), smoothed over 3 frames.
     None where the hand is missing in this or the previous frame."""
@@ -152,11 +165,7 @@ def _speeds(frames: list) -> list:
                         for i in range(contract.POINTS))
             raw.append(moved / contract.POINTS / size / dt if dt > 0 and size > 0 else None)
         prev = f
-    out = []
-    for i in range(len(raw)):
-        window = raw[max(0, i - 1):i + 2]
-        out.append(None if any(v is None for v in window) else sum(window) / len(window))
-    return out
+    return _smooth3(raw)
 
 
 def find_hold(frames: list) -> Optional[list]:
@@ -187,6 +196,99 @@ def find_hold(frames: list) -> Optional[list]:
     a, b = min(runs, key=lambda r: (round(height(r), 2), -(r[1] - r[0])))
     lo, hi = frames[a]["t_ms"] + HOLD_TRIM_MS, frames[b]["t_ms"] - HOLD_TRIM_MS
     return [f for f in frames[a:b + 1] if lo <= f["t_ms"] <= hi] or frames[a:b + 1]
+
+
+def _wrist_drop_speeds(frames: list) -> list:
+    """Vertical wrist speed per frame in hand sizes per second (+ = moving down the picture), smoothed over 3
+    frames. None where the hand is missing in this or the previous frame."""
+    raw, prev = [], None
+    for f in frames:
+        cur, before = f["landmarks"], prev["landmarks"] if prev else None
+        if cur is None or before is None:
+            raw.append(None)
+        else:
+            dt = (f["t_ms"] - prev["t_ms"]) / 1000
+            size = _hand_size(cur)
+            raw.append((cur[1] - before[1]) / size / dt if dt > 0 and size > 0 else None)
+        prev = f
+    return _smooth3(raw)
+
+
+def _span(frames: list, from_ms: float, to_ms: float) -> Optional[Segment]:
+    """One [from_ms, to_ms] cut, kept only under the segmenter's rules (length, share of frames without a hand)."""
+    c = SEGMENTER_DEFAULTS
+    if not c["min_ms"] <= to_ms - from_ms <= c["max_ms"]:
+        return None
+    cut = [{"t_ms": f["t_ms"], "landmarks": f["landmarks"]} for f in frames if from_ms <= f["t_ms"] <= to_ms]
+    missing = sum(1 for f in cut if f["landmarks"] is None)
+    if not cut or missing == len(cut) or missing / len(cut) > c["max_missing"]:
+        return None
+    return Segment(from_ms, to_ms, cut)
+
+
+@dataclass
+class SingleTake:
+    sign: Segment   # the one movement
+    rest: list      # the raise and the lower as Segments, when they pass the keep rules (they become _none samples)
+
+
+def find_single_take(frames: list) -> Optional[SingleTake]:
+    """The one movement in a rest -> raise -> (hold) -> MOVE -> settle -> lower -> rest clip.
+
+    Measured on 40 real FSL "J" clips (4 signers): the raise is the wrist rising from the bottom of the picture and
+    the lower is it dropping back out. The move always ends in a still settle or runs straight into the lower, but
+    the pause after the raise is often missing. So the raise and lower are found by the wrist's vertical speed; the
+    move starts at the first fast frame after the raise that keeps moving for min_ms, and ends at the first still
+    frame whose stillness lasts stop_hold_ms or runs into the lower (the end the app's segmenter would pick). The
+    move gets the segmenter's pad_ms in front. On all 40 clips this kept one J of 750-1950 ms.
+    """
+    c = SEGMENTER_DEFAULTS
+    speeds, drop = _speeds(frames), _wrist_drop_speeds(frames)
+    hand = [i for i, f in enumerate(frames) if f["landmarks"] is not None]
+    if not hand:
+        return None
+    first, last = hand[0], hand[-1]
+
+    def t(i):
+        return frames[i]["t_ms"]
+
+    def still(i):
+        return speeds[i] is not None and speeds[i] < c["stop_speed"]
+
+    def fast(i):
+        return speeds[i] is not None and speeds[i] > c["start_speed"]
+
+    raise_end = first
+    while raise_end < last and (drop[raise_end] is None or -drop[raise_end] > RAISE_SPEED):
+        raise_end += 1
+    lower_start = last
+    while lower_start > raise_end and (drop[lower_start] is None or drop[lower_start] > RAISE_SPEED):
+        lower_start -= 1
+
+    start = next((i for i in range(raise_end, lower_start + 1)
+                  if fast(i) and not any(still(k) for k in range(i, lower_start + 1) if t(k) - t(i) <= c["min_ms"])),
+                 None)
+    if start is None:
+        return None
+    end, i = lower_start, start + 1
+    while i <= lower_start:
+        if still(i):
+            k = i
+            while k < lower_start and still(k + 1):
+                k += 1
+            if k == lower_start or t(k) - t(i) >= c["stop_hold_ms"]:
+                end = i
+                break
+            i = k
+        i += 1
+
+    sign = _span(frames, t(start) - c["pad_ms"], t(end))
+    if sign is None:
+        return None
+    moving = next((i for i in range(first, raise_end + 1) if speeds[i] is not None), raise_end)
+    rest = [s for s in (_span(frames, t(moving) - c["pad_ms"], t(raise_end)),
+                        _span(frames, t(lower_start) - c["pad_ms"], t(last))) if s]
+    return SingleTake(sign, rest)
 
 
 def _static_from_video(frames: list) -> dict:
