@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Copy the currently published model into the app's bundled assets (spec §5.2: the bundled model is version 0).
+"""Copy the currently published model into the app's bundled assets, with its version in version.txt.
 
 Usage: python android/tools/fetch_bundled_model.py http://<server>:8000
 Works against the real platform or fixtures/mock_server (python -m http.server 8000).
@@ -54,6 +54,9 @@ def main() -> None:
         old.unlink()
     for name, content in data.items():
         (ASSETS / name).write_bytes(content)
+    # The app reports the bundled model under this version, so a fresh install neither shows "demo model" nor
+    # re-downloads the same version on its first update check.
+    (ASSETS / "version.txt").write_text(f"{latest['version']}\n")
     kind = "static + motion" if motion else "static only"
     print(f"Bundled server version {latest['version']} ({kind}) into {ASSETS}")
 

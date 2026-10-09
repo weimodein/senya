@@ -9,3 +9,4 @@ gradlew text eol=lf
 *.mp4 binary
 *.tflite binary
 *.task binary
+*.apk binary
