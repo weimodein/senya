@@ -1,4 +1,4 @@
-# OS / editors (folder-specific ignores live in android/.gitignore and platform/.gitignore)
+# OS / editors (folder-specific ignores live in android/.gitignore, senya-backend/.gitignore and senya-ml/.gitignore)
 .DS_Store
 Thumbs.db
 desktop.ini

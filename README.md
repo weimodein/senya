@@ -22,7 +22,7 @@ AppBuildersPH Hackathon 2026 · Theme: Local AI
 
 ## What runs locally
 - **On the phone:** hand landmark detection (MediaPipe), the static and motion sign classifiers (TFLite), the prediction stabilizer, and text-to-speech.
-- **In the browser and on the trainer's computer:** landmark extraction from uploaded clips (browser) and training (Python trainer).
+- **On the team's laptop (ML service):** landmark extraction from uploaded clips and model training. Clips are deleted right after extraction.
 
 ## What requires internet
 - Nothing at translation time.
@@ -40,15 +40,16 @@ AppBuildersPH Hackathon 2026 · Theme: Local AI
 | Path | Owner | What |
 |---|---|---|
 | `android/` | Person A | Android app |
-| `platform/` | Person B | Web platform: Express + PostgreSQL backend, React frontend, deployment |
-| `ml/` | Person A | Python trainer (Keras → TFLite) and worker |
-| `fixtures/` | Person B | Shared test fixtures + mock server |
-| `CONTRACT.md` | Both agree, B edits | The app ↔ platform contract |
-| `docs/` | — | Design spec |
+| `senya-backend/` | Person B | REST API: Express + Sequelize on Supabase PostgreSQL |
+| `senya-admin/` | Person B | Admin panel: React + Vite + Tailwind |
+| `senya-ml/` | Person A | ML service: FastAPI + MediaPipe + TensorFlow (extraction, training → TFLite) |
+| `fixtures/` | Person A | Dummy v0 model + mock server |
+| `CONTRACT.md` | Both agree | Model files and the app-facing endpoints |
+| `docs/` | — | Design spec, architecture (`docs/architecture.md`), deployment |
 
 ## Running it
 - Android app: build it (see `android/README.md`) or install `app-release.apk` from the GitHub release.
-- Platform: see `platform/README.md`.
+- Backend, ML service and admin panel: see `docs/architecture.md` (how they connect) and `docs/deploy.md`.
 - Model updates need the internet (the deployed server); translation itself works in airplane mode.
 
 ## License

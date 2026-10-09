@@ -1,181 +1,296 @@
-# Senya — Architecture and Main Pipeline
+# Senya — Architecture
 
-Single source of truth for **how the pieces connect**. The design spec (`2026-10-09-senya-design.md`) says *what* Senya does; `CONTRACT.md` freezes the app↔platform file formats; this document says **who does what, in what order, and exactly what each API call looks like**, so Person B and Person A never have to guess.
+How the pieces of Senya connect: the components, every API between them, the database, and deployment. `CONTRACT.md` freezes the model files and the endpoints the Android app uses. If the two disagree about those, `CONTRACT.md` wins; about anything else, this document wins.
 
-If this document and the spec disagree about *endpoints, JSON shapes or the database*, this document wins (it is newer and more specific). If they disagree about the *model files*, `CONTRACT.md` wins.
+---
 
-## 1. The main pipeline (the one thing that must work)
+## 1. Components
 
-```
- ① UPLOAD              ② STORE            ③ TRAIN                 ④ PUBLISH            ⑤ TRANSLATE
- React page            Express            Python trainer          Express              Android app
- ┌───────────┐  JSON   ┌──────────┐ job   ┌─────────────────┐ files ┌──────────┐ HTTPS ┌─────────────┐
- │ pick clip │ ──────► │ Postgres │ ────► │ export → train  │ ────► │ models   │ ────► │ download,   │
- │ MediaPipe │ landm.  │ samples/ │ queue │ → Keras → TFLite│ POST  │ (bytea)  │  GET  │ verify,     │
- │ in browser│ only    │ sequences│       │ → verify → push │       │ + publish│       │ run offline │
- └───────────┘         └──────────┘       └─────────────────┘       └──────────┘       └─────────────┘
-   Person B              Person B              Person A               Person B            Person A
-```
-
-| Step | What happens | Owner |
-|---|---|---|
-| ① Upload | Browser runs MediaPipe on the chosen image/video, builds landmark rows (and, for motion signs, segments) and `POST`s **JSON only**. No video leaves the computer. | B |
-| ② Store | Express validates and inserts rows into PostgreSQL. | B |
-| ③ Train | A Python worker polls for a queued job, downloads the dataset, trains both models, converts to TFLite, checks TFLite = Keras, makes golden files, uploads the result. | A |
-| ④ Publish | Express stores the files (`bytea`), computes sha256, lists versions. A human clicks **Publish** to make one current. | B |
-| ⑤ Translate | The app asks `GET /api/model/latest`, downloads files if the version differs, verifies sha256 + golden files, swaps models. Everything after that is offline. | A |
-
-### Milestones (in this order — do not skip ahead)
-
-| # | Milestone | Done when | Owner |
+| Part | Folder | What it does | Built with |
 |---|---|---|---|
-| M1 | **Fixtures:** dummy models + mock server | `python -m http.server` in `fixtures/mock_server/` serves `/api/model/latest` and the app downloads it | A |
-| M2 | **Server skeleton:** DB schema, auth, `latest` + model files, signs CRUD | `curl /api/model/latest` returns 404, then the dummy v0 JSON after `seed` | B |
-| M3 | **Trainer on synthetic data:** full train→TFLite→golden pipeline | `python -m senya_ml.cli train --synthetic` writes a model folder the app accepts | A |
-| M4 | **Ingest + queue:** upload endpoints, `train_jobs`, `GET /api/export`, `POST /api/models` | trainer worker runs a job end to end against the real server | B (endpoints), A (worker) |
-| M5 | **Browser extraction:** React page turns a clip into landmark JSON | uploaded rows appear in `samples` | B |
-| M6 | **End to end:** real clips → train → publish → phone updates → offline | the demo acceptance checks in the spec §6 | both |
+| **Admin panel** | `senya-admin/` | Login, manage signs, upload clips, train, deploy and roll back models | React, Vite, Tailwind CSS, axios, react-router |
+| **Backend** | `senya-backend/` | The only REST API and the only thing that touches the database. Forwards uploads to the ML service, stores trained models, serves them to the phone | Node.js, Express, Sequelize, JWT, bcrypt, multer, axios |
+| **ML service** | `senya-ml/` | Extracts hand landmarks from clips, trains the models, exports TFLite, reports back to the backend | Python 3.10, FastAPI, MediaPipe 0.10.35, TensorFlow 2.20 |
+| **Android app** | `android/` | On-device translation; downloads new models when online | Kotlin, CameraX, MediaPipe, TFLite |
+| **Database** | Supabase | All data, including model files (`bytea`) | PostgreSQL |
 
-## 2. Who owns which folder
+```
+                        JWT (Bearer)                          X-API-Key
+ ┌──────────────┐   ───────────────────►  ┌────────────────┐  ─────────────────►  ┌──────────────┐
+ │ senya-admin  │   /api/auth, /api/signs │ senya-backend  │  POST /extract       │  senya-ml    │
+ │ React+Vite   │   /api/models           │ Express +      │  POST /train         │  FastAPI     │
+ └──────────────┘                         │ Sequelize      │  ◄─────────────────  │  MediaPipe   │
+                                          │                │  GET  /api/ml/dataset│  TensorFlow  │
+ ┌──────────────┐   public, no auth       │                │  POST /api/ml/models │              │
+ │ Android app  │   ───────────────────►  │                │       /:id/{progress,│              │
+ │ (offline     │   GET /api/model/latest │                │        result,fail}  │              │
+ │  inference)  │   GET /models/v{n}/*    └───────┬────────┘                      └──────────────┘
+ └──────────────┘                                 │ Sequelize (only writer)
+                                                  ▼
+                                          ┌────────────────┐
+                                          │ Supabase PG    │
+                                          └────────────────┘
+```
 
-| Path | Owner | Contents |
+**Three callers, three credentials:**
+- Admin panel → backend: a **JWT** from `POST /api/auth/login`.
+- Backend ↔ ML service (both directions): the shared secret `ML_API_KEY` in the `X-API-Key` header.
+- Android app → backend: **public**, read-only. The app only downloads deployed models.
+
+---
+
+## 2. Design decisions
+
+| Decision | Why |
+|---|---|
+| The ML service never touches the database. It sends finished files to the backend, which stores them and computes their sha256 | One writer, one place to look, no database credentials on the laptop |
+| `POST /train` returns `202` at once. The ML service then calls back with `progress`, `result` or `fail`, and progress is a database column | Training takes minutes; nothing waits on an open request, and a restart on either side loses nothing |
+| One `model_versions` row per version; its static and motion files hang off it in `model_files` | A version is always complete; static and motion models can't drift apart |
+| Model files are stored in Postgres (`bytea`, tens of KB) and served at immutable `/models/v{n}/…` URLs | No storage buckets, no stale caches |
+| Integer versions, assigned by the backend | Matches the `version` integer the app compares |
+| Clips are never stored. The ML service extracts landmarks, and the clip is deleted | Privacy: video of the signer never persists anywhere |
+| One synchronous request per uploaded file | No background job table; the panel shows per-file progress naturally |
+| One admin account, set from env vars | Enough for a two-person team |
+| The schema (`migrations/*.sql`) is idempotent and applied on every start | No manual database steps on deploy |
+| `python -m app.cli run-job <id>` can finish a training run without the HTTP trigger | Training still works if the backend can't reach the laptop |
+
+---
+
+## 3. Folder layout
+
+```
+senya/
+  CONTRACT.md                  model files + app-facing endpoints (frozen)
+  docs/architecture.md         this file
+  docs/deploy.md               Supabase + Render + laptop setup
+  fixtures/                    dummy v0 model + mock server (generated by senya-ml)
+  android/                     Kotlin app
+  render.yaml                  one Render web service: backend + built admin panel
+
+  senya-backend/
+    server.js                  start: env → database → migrations → admin account → sweep stuck runs → listen
+    migrations/001_init.sql
+    src/app.js                 createApp(): routes, CORS, serves senya-admin/dist in production
+    src/config/db.js           Sequelize on DATABASE_URL, migrate()
+    src/models/index.js        Admin, Sign, Upload, Sample, ModelVersion, ModelFile
+    src/middleware/            auth.js (JWT), apiKey.js (X-API-Key), errors.js
+    src/routes/index.js        every route, grouped by caller (public / JWT / X-API-Key)
+    src/controllers/           auth, sign, upload, model, ml
+    src/services/mlClient.js   the ONLY file that calls the ML service
+    src/services/modelStore.js stores a trained version's files + sha256
+    src/utils/contract.js      CONTRACT.md shapes and validation
+    scripts/seedFixtureModel.js  npm run seed:v0 → the fixture model as version 0, deployed
+    test/api.test.js           end to end against DATABASE_URL (schema senya_test) with a stub ML service
+
+  senya-ml/
+    app/main.py                FastAPI app, /health, routers
+    app/deps.py                X-API-Key check
+    app/routers/               extract.py, train.py
+    app/services/extract.py    OpenCV decode → MediaPipe HandLandmarker → landmarks
+    app/services/segmenter.py  motion segmenter (CONTRACT.md §3 item 7)
+    app/services/jobs.py       one training run at a time, in a background thread
+    app/services/backend_client.py  the ONLY file that calls the backend
+    app/core/                  training pipeline: contract, data, augment, models, train, export, pipeline, fixtures
+    app/models/                hand_landmarker.task (git-ignored; see its README)
+    app/cli.py                 make-fixtures | train | run-job <id>
+    tests/
+
+  senya-admin/
+    src/api/                   client.js, auth.js, signs.js, models.js
+    src/context/AuthContext.jsx
+    src/components/            Layout, Sidebar, ProtectedRoute, Button, Modal, ProgressBar, Toast
+    src/pages/                 Login, Signs, SignDetail, Models
+```
+
+---
+
+## 4. The three flows
+
+### 4.1 Collect data (upload → extract → store)
+
+```
+Admin                       Backend                                  ML service
+  │ POST /api/signs/7/uploads │                                         │
+  │ (multipart: file)         │ POST /extract  (X-API-Key)              │
+  │ ───────────────────────►  │ file + kind=static|motion ────────────► │ decode, find the hand in every frame,
+  │                           │                                         │ trim to the signing span
+  │                           │ ◄──── {samples | sequences, counts} ─── │ static: sampled hand frames
+  │                           │ insert Upload + Samples (one tx)        │ motion: segmenter → raw sequences
+  │ ◄── 201 upload summary ── │                                         │ clip deleted
+```
+The admin panel sends **one request per file** and shows a row per file (✓ 40 samples / ✗ "no hand found in this clip"). A 1080p phone clip takes about 7–13 s.
+
+### 4.2 Train (start, then callbacks)
+
+```
+Admin                 Backend                                ML service
+  │ POST /api/models/train │                                       │
+  │ ─────────────────────► │ ModelVersion{version:n, training}     │
+  │                        │ POST /train {model_id} ─────────────► │ 202 (or 409 if busy)
+  │ ◄── 202 {model} ────── │                                       │ thread starts
+  │                        │ ◄──── GET /api/ml/dataset ─────────── │
+  │ GET /api/models/:id    │ ◄──── POST /api/ml/models/:id/progress│ (once per epoch or so)
+  │ (poll every 2 s)       │ ◄──── POST /api/ml/models/:id/result  │ multipart: files + meta
+  │                        │ store files, sha256, status=trained   │   (or …/fail {error})
+```
+If the backend can't reach the ML service, the row stays `training` and its message reads `ML service unreachable; run: python -m app.cli run-job <id>`. Running that on the laptop finishes the job through the same callbacks. A run still `training` after 2 hours is marked `failed` the next time the backend starts. Deleting the row also clears it.
+
+### 4.3 Deploy and translate
+
+```
+Admin: POST /api/models/:id/deploy  → that row becomes the only `deployed` one (an older version = rollback)
+Phone: GET /api/model/latest        → version differs? download /models/v{n}/*, verify sha256 + golden files, swap
+Phone: everything after that is offline.
+```
+
+---
+
+## 5. API reference
+
+Base URL: `http://localhost:8000` locally. For a phone, run `adb reverse tcp:8000 tcp:8000` and either put `senya.serverUrl=http://127.0.0.1:8000` in `android/local.properties` or use the debug server override in Settings. Release builds default to `https://senya.onrender.com`. Errors are always `{"message": "…"}` with a 4xx/5xx status.
+
+### 5.1 Public (the Android app; frozen by CONTRACT.md)
+
+| Method | Path | Response |
 |---|---|---|
-| `android/` | A | Android app (done; waits for M1/M6) |
-| `ml/` | A | Python trainer, worker, dummy-model generator |
-| `fixtures/` | **A** (was B) | Generated by `ml/`: dummy models, golden files, mock server, `segmenter_case.json` |
-| `platform/` | B | Express + React + Postgres, deployment |
-| `docs/`, `CONTRACT.md` | shared | B edits `CONTRACT.md`; this file is updated by whoever changes an API |
+| GET | `/health` | `{"ok": true}` |
+| GET | `/api/model/latest` | CONTRACT.md §3 item 9 JSON for the deployed version; `404` if none |
+| GET | `/models/v{n}/{file}` | raw bytes; `.tflite` → `application/octet-stream`, `.json` → `application/json`; cached as immutable |
 
-`fixtures/` moved to A because generating real TFLite files needs TensorFlow, which now lives in `ml/`.
+### 5.2 Admin panel (`Authorization: Bearer <jwt>`)
 
-## 3. Authentication
+**Auth**
+- `POST /api/auth/login` `{username, password}` → `{token, admin: {id, username}}`; `401` on bad credentials. At most 10 failed attempts per IP per 15 minutes.
+- `GET /api/auth/me` → `{id, username}`
 
-- Every endpoint below marked **admin** needs `Authorization: Bearer <ADMIN_TOKEN>`. Missing or wrong → `401 {"error": "unauthorized"}`.
-- **Public** endpoints (no token): `GET /api/model/latest`, `GET /models/v{n}/{file}`, `GET /health`. The app uses only these.
-- `ADMIN_TOKEN` comes from the environment and is never committed. The browser UI asks for it once and keeps it in `sessionStorage`.
+**Signs**
+- `GET /api/signs` → `[{id, label, kind, start_shapes, sample_count, upload_count}]`
+- `POST /api/signs` `{label, kind: "static"|"motion", start_shapes?: ["I"]}` → `201`; `409` if the label exists
+- `PATCH /api/signs/:id` `{start_shapes}` → `200` (motion signs only)
+- `DELETE /api/signs/:id` → `204`, deleting its uploads and samples; `400` for `_none`
 
-## 4. API reference
+**Uploads** (one file per request)
+- `POST /api/signs/:id/uploads`, multipart field `file` (video or image, ≤ 50 MB) → `201 {id, filename, samples_added, segments_found, no_hand_frames}`. `422` when nothing usable was found; `503` when the ML service is unreachable.
+- `GET /api/signs/:id/uploads` → newest first
+- `DELETE /api/uploads/:id` → `204`, deleting its samples
+- `GET /api/signs/:id/samples?limit=60` → `[{id, upload_id, thumb}]` for the review grid
 
-Base URL: `http://localhost:8000` locally, an HTTPS URL when deployed. All bodies are JSON unless noted. Errors are `{"error": "<message>"}` with a 4xx status.
+**Models**
+- `GET /api/models` → `[{id, version, status, progress, message, error, labels, motion_labels, val_accuracy, motion_val_accuracy, created_at, trained_at, deployed_at}]`, newest first
+- `GET /api/models/:id` → the same fields plus `report`
+- `POST /api/models/train` → `202 {model}`. `409` if a run is already training. `400` unless at least 2 static signs have 30+ samples each. The trainer itself skips motion signs without enough data (20+ sequences from 2+ uploads; `_none` 40+).
+- `POST /api/models/:id/deploy` → `200`; only for a `trained` or `deployed` row
+- `DELETE /api/models/:id` → `204`; not allowed for the deployed row
 
-### 4.1 Public (used by the Android app)
+### 5.3 Callbacks the ML service makes (`X-API-Key`, prefix `/api/ml`)
 
-**`GET /health`** → `200 {"ok": true}`
+- `GET /api/ml/dataset` → the whole training set. Uploads stay separate because the trainer splits by upload.
+  ```json
+  {"signs": [
+    {"label": "A", "kind": "static", "start_shapes": null,
+     "uploads": [{"id": 7, "samples": [[63 floats], …]}]},
+    {"label": "J", "kind": "motion", "start_shapes": ["I"],
+     "uploads": [{"id": 12, "sequences": [{"frames": [{"t_ms": 0, "landmarks": [63 floats] | null}, …]}]}]}]}
+  ```
+- `POST /api/ml/models/:id/progress` `{progress: 0..1, message}` → `204`
+- `POST /api/ml/models/:id/result`, multipart: `meta` (JSON string: `labels`, `val_accuracy`, `report`, and if there is a motion model, `motion_labels`, `motion_val_accuracy`, `motion_report`) plus file parts named exactly as in CONTRACT.md (`model.tflite`, `labels.json`, `golden.json`, and either all four `motion*` files or none) → `204`, status `trained`. The backend stores and hashes the files and never interprets them.
+- `POST /api/ml/models/:id/fail` `{error}` → `204`, status `failed`
 
-**`GET /api/model/latest`** → the current version (`models.is_current`).
-`404` if none is published. Otherwise (contract §3 item 9, unchanged):
-```json
-{"version": 3,
- "model_url": "/models/v3/model.tflite", "labels_url": "/models/v3/labels.json", "sha256": "<hex of model.tflite>",
- "motion": {"model_url": "/models/v3/motion.tflite", "labels_url": "/models/v3/motion_labels.json",
-            "config_url": "/models/v3/motion_config.json", "sha256": "<hex of motion.tflite>"}}
+All three `models/:id` callbacks return `409` once the row is no longer `training` (for example, it was deleted).
+
+### 5.4 ML service (`X-API-Key`; called only by the backend)
+
+- `GET /health` → `{"status": "ok", "training": <model_id|null>}` (no key needed)
+- `POST /extract`, multipart: `file`, `kind` (`static` | `motion`). Landmarks are 63 raw floats (CONTRACT.md §3 item 1), never normalized.
+  ```json
+  // static: one frame every 100 ms inside the signing span, at most 60 per clip
+  {"kind": "static", "no_hand_frames": 4,
+   "samples": [{"landmarks": [63 floats], "handedness": "Right", "frame_index": 12, "thumb": "data:image/jpeg;base64,…"}]}
+  // motion: raw (not resampled) movement segments
+  {"kind": "motion", "no_hand_frames": 10,
+   "sequences": [{"duration_ms": 1100, "handedness": "Right", "thumb": "…",
+                  "frames": [{"t_ms": 0, "landmarks": [63 floats] | null}, …]}]}
+  ```
+  `422` if no hand or no complete movement is found.
+- `POST /train` `{model_id}` → `202`, or `409` if a run is already going. The run downloads the dataset, trains both models, checks TFLite against Keras, makes the golden files, and calls back.
+
+---
+
+## 6. Database
+
+The schema is `senya-backend/migrations/001_init.sql`. It is idempotent and runs on every start. Sequelize models mirror it, and `sync()` is never called.
+
 ```
-`motion` is `null` when the version has no motion model.
-
-**`GET /models/v{n}/{file}`** → raw bytes from `model_files` (`Content-Type: application/octet-stream` for `.tflite`, `application/json` for `.json`). `404` if missing. Files per version: `model.tflite`, `labels.json`, `golden.json`, and if motion: `motion.tflite`, `motion_labels.json`, `motion_config.json`, `motion_golden.json`.
-
-### 4.2 Signs and data (admin, used by the React page)
-
-**`GET /api/signs`** → `[{"id": 1, "label": "A", "kind": "static", "start_shapes": null, "sample_count": 42, "upload_count": 3}]`
-(for motion signs `sample_count` counts sequences).
-
-**`POST /api/signs`** `{"label": "J", "kind": "motion", "start_shapes": ["I"]}` → `201` the sign. `409` if the label exists. `kind` is `static` or `motion`. The sign `_none` (kind `motion`) is created automatically at startup and cannot be deleted.
-
-**`PATCH /api/signs/{id}`** `{"start_shapes": ["I"]}` → `200` the sign (motion signs only).
-
-**`DELETE /api/signs/{id}`** → `204` (cascades to uploads, samples, sequences). `400` for `_none`.
-
-**`POST /api/signs/{id}/uploads`** — one file's worth of extracted landmarks (browser extraction, spec §0).
-
-Static sign body:
-```json
-{"filename": "A_clip1.mp4", "no_hand_frames": 4,
- "samples": [{"landmarks": [63 floats], "handedness": "Right", "frame_index": 12, "thumb": "data:image/jpeg;base64,…"}]}
+admins          id, username UNIQUE, password_hash, created_at
+signs           id, label UNIQUE, kind ('static'|'motion'), start_shapes JSONB, created_at
+                -- '_none' (motion) is inserted by the migration; the API refuses to delete it
+uploads         id, sign_id → signs CASCADE, filename, samples_added, segments_found, no_hand_frames, created_at
+samples         id, sign_id → signs CASCADE, upload_id → uploads CASCADE,
+                kind ('static'|'motion'), data JSONB, handedness, thumb TEXT
+                -- static: data = [63 floats]; motion: data = {duration_ms, frames:[{t_ms, landmarks|null}]}
+model_versions  id, version INT UNIQUE, status ('training'|'trained'|'failed'|'deployed'),
+                progress REAL, message, error, labels JSONB, motion_labels JSONB,
+                val_accuracy, motion_val_accuracy, report JSONB, created_at, trained_at, deployed_at
+                -- unique partial indexes: at most one 'deployed' row and at most one 'training' row
+model_files     model_id → model_versions CASCADE, name, content BYTEA, sha256, PRIMARY KEY (model_id, name)
 ```
-Motion sign body (raw, not resampled; `landmarks` is `null` for a frame with no hand):
-```json
-{"filename": "J_clip1.mp4", "no_hand_frames": 10,
- "sequences": [{"duration_ms": 1100, "handedness": "Right", "thumb": "data:image/jpeg;base64,…",
-                "frames": [{"t_ms": 0, "landmarks": [63 floats]}, {"t_ms": 33, "landmarks": null}]}]}
-```
-Validation: every `landmarks` has exactly 63 finite numbers; at most 5,000 samples or 500 sequences per request; static signs reject `sequences` and motion signs reject `samples` (`400`). Response `201`: `{"upload_id": 7, "samples_added": 40, "segments_found": 0, "no_hand_frames": 4}`.
 
-**`GET /api/signs/{id}/uploads`** → `[{"id": 7, "filename": "…", "samples_added": 40, "segments_found": 0, "no_hand_frames": 4, "created_at": "…"}]`
+Row-level security is on for every table with no policies. That blocks Supabase's public REST API, while the backend connects as the owner and is unaffected.
 
-**`DELETE /api/uploads/{id}`** → `204`, deleting its samples/sequences.
+---
 
-**`GET /api/signs/{id}/items?limit=60`** → thumbnails for review: `[{"id": 9, "upload_id": 7, "thumb": "data:image/jpeg;base64,…"}]` (works for both kinds).
-
-### 4.3 Training (admin)
-
-**`POST /api/train`** → `202 {"job_id": 5}`. `409` if a job is `queued` or `running`. `400` if no sign has enough data (rules in spec §4.3: static ≥ 30 samples; motion ≥ 20 sequences from ≥ 2 uploads, `_none` ≥ 40).
-
-**`GET /api/train/status`** → the newest job: `{"id": 5, "status": "running", "progress": 0.4, "message": "epoch 12/40", "error": null, "model_version": null, "created_at": "…"}`. `status` is `queued | running | done | failed`.
-
-**`GET /api/models`** → `[{"version": 3, "is_current": true, "val_accuracy": 0.97, "motion_val_accuracy": 0.9, "labels": ["A","B"], "motion_labels": ["_none","J","Z"], "has_motion": true, "report": {…}, "created_at": "…"}]`
-
-**`POST /api/models/{version}/publish`** → `200` and makes that version the only current one (`is_current` is unique, see the schema). Publishing an older version is a rollback.
-
-### 4.4 Trainer-only (admin token; called by `ml/` worker, not by the browser)
-
-**`GET /api/train/jobs/next`** → `204` if nothing is queued; otherwise **claims** the oldest queued job (sets `running` atomically with `FOR UPDATE SKIP LOCKED`) and returns `200 {"id": 5}`.
-
-**`POST /api/train/jobs/{id}/progress`** `{"progress": 0.4, "message": "epoch 12/40"}` → `204`.
-
-**`POST /api/train/jobs/{id}/fail`** `{"error": "…"}` → `204`, status `failed`.
-
-**`GET /api/export`** → the whole training set:
-```json
-{"signs": [
-  {"label": "A", "kind": "static", "start_shapes": null,
-   "uploads": [{"id": 7, "samples": [[63 floats], …]}]},
-  {"label": "J", "kind": "motion", "start_shapes": ["I"],
-   "uploads": [{"id": 12, "sequences": [{"frames": [{"t_ms": 0, "landmarks": [63 floats] | null}, …]}]}]}
-]}
-```
-Thumbnails are not included. Uploads are kept separate because the trainer **splits by upload** (spec §4.3).
-
-**`POST /api/models`** (`multipart/form-data`) → `201 {"version": 4}`. The server assigns `version = max + 1`, stores every file in `model_files`, computes sha256, and inserts a `models` row with `is_current = false`.
-Fields: `job_id`, `meta` (JSON string, below) and file parts named exactly `model.tflite`, `labels.json`, `golden.json`, and optionally `motion.tflite`, `motion_labels.json`, `motion_config.json`, `motion_golden.json` (all four or none).
-```json
-{"labels": ["A","B"], "val_accuracy": 0.97, "report": {…},
- "motion_labels": ["_none","J","Z"], "motion_val_accuracy": 0.9, "motion_report": {…}}
-```
-`motion_*` keys are omitted for a static-only version. The server must not interpret the files; it only stores and hashes them.
-
-## 5. Database
-
-The ready-to-run schema is `platform/server/schema.sql` (PostgreSQL). Highlights:
-- `signs.label` is unique; `_none` is a normal row with `kind = 'motion'`.
-- `samples.landmarks` and `sequences.frames` are `JSONB` (63 floats / raw frames).
-- `models` has a **partial unique index** so only one row can have `is_current = true`.
-- `model_files(version, name, content bytea, sha256)` holds the files, so the host needs no persistent disk.
-- `train_jobs` is the queue; claiming uses `FOR UPDATE SKIP LOCKED`.
-
-## 6. Environment variables
+## 7. Environment variables
 
 | Variable | Used by | Example |
 |---|---|---|
-| `DATABASE_URL` | Express | `postgres://user:pass@host:5432/senya` |
-| `ADMIN_TOKEN` | Express | a long random string |
-| `PORT` | Express | `8000` |
-| `SENYA_SERVER` | trainer | `https://senya.example.com` |
-| `SENYA_ADMIN_TOKEN` | trainer | same value as `ADMIN_TOKEN` |
+| `DATABASE_URL` | backend | Supabase **session pooler** URI (`…pooler.supabase.com:5432`) |
+| `PORT` | backend | `8000` |
+| `JWT_SECRET`, `JWT_EXPIRES_IN` | backend | 64 random hex characters; `12h` |
+| `ADMIN_USERNAME`, `ADMIN_PASSWORD` | backend | the admin account, created or updated on every start |
+| `ML_SERVICE_URL` | backend | `http://localhost:8001`, or the ngrok URL when deployed |
+| `ML_API_KEY` | backend + ML service | the same random string in both |
+| `ALLOWED_ORIGINS` | backend | `http://localhost:5173` (local only; in production the panel is same-origin) |
+| `BACKEND_URL` | ML service | `http://localhost:8000`, or the Render URL |
+| `TRAIN_EPOCHS`, `STATIC_STEP_MS`, `STATIC_MAX_SAMPLES`, `MOTION_MAX_FPS`, `TRIM_PAD_MS`, `EXTRACT_MAX_SIDE` | ML service | optional tuning; defaults in `.env.example` |
 
-Never commit these. Put them in `.env` files (git-ignored) and in the host's settings.
+Ports: backend `8000`, ML service `8001`, admin dev server `5173`. Each folder has a committed `.env.example` and a git-ignored `.env`.
 
-## 7. Local development, step by step
+---
 
-1. **Person B:** run Postgres locally (Docker or installed), apply `platform/server/schema.sql`, start Express on `:8000`.
-2. **Person A:** `python -m senya_ml.cli make-fixtures` fills `fixtures/mock_server/`. Serve it with `python -m http.server 8000` (inside that folder) to test the app with no platform at all.
-3. **Both:** once M2 is up, Person B can `seed` the dummy v0 by `POST /api/models` using the files in `fixtures/mock_server/models/v0/`. Then the app and the server are connected.
-4. **Phone:** `adb reverse tcp:8000 tcp:8000` and set the app server URL to `http://127.0.0.1:8000`, or use the deployed HTTPS URL.
+## 8. Running and deploying
 
-## 8. Rules that prevent confusion
+**Locally**, in two terminals (plus `npm run dev` in `senya-admin/` for the panel):
+```bash
+cd senya-backend && npm run dev                                   # :8000
+cd senya-ml && .venv\Scripts\activate && uvicorn app.main:app --port 8001
+```
+Tests: `npm test` in `senya-backend/` (uses `DATABASE_URL`, in its own `senya_test` schema), and `pytest` in `senya-ml/`.
 
-1. **Shapes live in `CONTRACT.md`** (63 floats, `[1,63]`, `[1,32,63]`, labels, file names). Do not redefine them elsewhere.
-2. **Raw in, raw out.** No Kotlin, JS or server code normalizes landmarks; the models do it.
-3. **Split by upload**, never by frame.
-4. **The server never runs ML.** It stores, queues, serves.
-5. **The app only reads the public endpoints.** If an app feature needs a new endpoint, add it here first.
+**Deployed** (details in `docs/deploy.md`):
+- **Render** runs one web service. It builds `senya-admin`, then starts `senya-backend`, which serves the panel and the API from the same origin.
+- **Supabase** holds the database.
+- **The ML service** runs on a laptop, reachable through an ngrok static domain. Uploads and training need the laptop online; translation never does.
+
+---
+
+## 9. Status
+
+| # | Milestone | Status |
+|---|---|---|
+| M1 | Backend serves the fixture v0 model at `/api/model/latest` (`npm run seed:v0`) | done — matches the mock server's response |
+| M2 | Every admin and `/api/ml` route works (`senya-backend` `npm test`) | done — 11/11 against Supabase |
+| M3 | Real clips → extraction → training → callbacks → `trained`, locally | done — 6 FSL clips, 95% validation accuracy |
+| M4 | The same loop from the admin panel in a browser | next |
+| M5 | The same loop on the Render URL, with the ML service behind the tunnel | |
+| M6 | Real data → deploy → phone downloads → airplane-mode demo | |
+
+---
+
+## 10. Rules
+
+1. **Only the backend touches the database.** The ML service keeps no state beyond the one running job.
+2. **One HTTP client per direction:** `mlClient.js` (backend → ML service) and `backend_client.py` (ML service → backend). No other file makes cross-service calls.
+3. **The app only reads the public endpoints**, and `CONTRACT.md` freezes them.
+4. **Raw in, raw out.** No JS, Python or Kotlin code normalizes landmarks; the models do.
+5. **Split by upload**, never by frame.
 6. **Changing an API:** edit this file in the same commit, and tell the other person.

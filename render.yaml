@@ -1,17 +1,27 @@
-# Render blueprint: one web service that serves the API and the built React page.
-# Database: Supabase (set DATABASE_URL in the Render dashboard; see docs/deploy.md).
+# Render blueprint: one web service runs senya-backend, which also serves the built senya-admin panel (same origin).
+# Database: Supabase (DATABASE_URL). ML service: the team's laptop behind an ngrok static domain (ML_SERVICE_URL).
+# See docs/deploy.md.
 services:
   - type: web
     name: senya
     runtime: node
     plan: free
-    buildCommand: cd platform/web && npm ci && npm run build && cd ../server && npm ci
-    startCommand: cd platform/server && node src/index.js
+    region: singapore
+    buildCommand: cd senya-admin && npm ci && npm run build && cd ../senya-backend && npm ci --omit=dev
+    startCommand: cd senya-backend && node server.js
     healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
         value: 22
-      - key: ADMIN_TOKEN
-        generateValue: true
       - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ML_SERVICE_URL
+        sync: false
+      - key: ML_API_KEY
         sync: false
