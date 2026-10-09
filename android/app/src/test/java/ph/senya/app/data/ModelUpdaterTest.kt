@@ -166,6 +166,14 @@ class ModelUpdaterTest {
         assertTrue(File(updater.installedDir(3), ModelFiles.MODEL).isFile)
     }
 
+    /** Render's free tier takes ~50 s to wake; the old 10 s read timeout failed the first check after idle. */
+    @Test
+    fun waitsForSlowServer() {
+        publish(3)
+        server.nextResponseDelayMs = 11_000
+        assertTrue(updater.check(server.baseUrl, 0) is ModelUpdater.Result.Updated)
+    }
+
     @Test
     fun badJsonFails() {
         File(root, "api/model").mkdirs()

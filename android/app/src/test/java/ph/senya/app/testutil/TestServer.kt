@@ -14,6 +14,8 @@ import java.net.SocketException
 class TestServer(private val root: File) : Closeable {
     private val socket = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
     @Volatile private var closed = false
+    /** Holds the next response this long, like a free-tier host waking up. */
+    @Volatile var nextResponseDelayMs = 0L
 
     val baseUrl: String = "http://127.0.0.1:${socket.localPort}"
 
@@ -35,6 +37,9 @@ class TestServer(private val root: File) : Closeable {
         while (reader.readLine()?.isNotEmpty() == true) { /* skip headers */ }
         val path = requestLine.split(" ").getOrNull(1)?.substringBefore('?').orEmpty()
         val file = File(root, path.trimStart('/'))
+        val delay = nextResponseDelayMs
+        nextResponseDelayMs = 0
+        if (delay > 0) Thread.sleep(delay)
         val out = client.getOutputStream()
         if (file.isFile) {
             val bytes = file.readBytes()

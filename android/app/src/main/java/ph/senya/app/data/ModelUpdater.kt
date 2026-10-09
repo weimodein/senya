@@ -18,7 +18,8 @@ class HttpStatusException(val code: Int) : IOException("HTTP $code")
 fun httpGet(url: URL): ByteArray {
     val conn = url.openConnection() as HttpURLConnection
     conn.connectTimeout = 3000
-    conn.readTimeout = 10000
+    // Render's free tier accepts the connection at once but can take ~50 s to answer while it wakes up
+    conn.readTimeout = 60000
     try {
         val code = conn.responseCode
         if (code != 200) throw HttpStatusException(code)
