@@ -78,6 +78,8 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
     private var bundle: ModelBundle? = null
     private val fps = FpsCounter()
     @Volatile private var modelLabel = ""
+    /** While now < this, the chip keeps showing the motion letter just committed. */
+    private var motionShownUntilMs = 0L
 
     override fun onResume() {
         super.onResume()
@@ -196,7 +198,13 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
             )
             binding.overlay.invalidate()
             binding.handHint.visibility = if (landmarks == null) View.VISIBLE else View.GONE
-            showGuess(out.staticGuess)
+            val now = result.timestampMs()
+            if (out.motionGuess != null && out.events.isNotEmpty()) {
+                motionShownUntilMs = now + 1000
+                showGuess(out.motionGuess)
+            } else if (now >= motionShownUntilMs) {
+                showGuess(out.staticGuess)
+            }
             if (out.events.isNotEmpty()) {
                 out.events.forEach { transcript.apply(it) }
                 renderTranscript()

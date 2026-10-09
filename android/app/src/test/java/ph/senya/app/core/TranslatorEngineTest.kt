@@ -50,4 +50,34 @@ class TranslatorEngineTest {
         engine.onTranscriptEdited(emptyOrEndsWithSpace = true) // Backspace removed the A
         assertEquals(listOf(StabilizerEvent.Letter("A")), engine.frames(8))
     }
+
+    private fun line(cx: Float) = FloatArray(Hand.FLOATS).also {
+        for (i in 0 until Hand.POINTS) { it[i * 3] = cx + 0.01f * i; it[i * 3 + 1] = 0.5f }
+    }
+
+    @Test
+    fun motionReplacesStartShape() {
+        val engine = TranslatorEngine(EngineModels(
+            static = always("I"),
+            motion = SequenceClassifier { Prediction("J", 0.9f) },
+            config = MotionConfig(),
+        ))
+        val events = mutableListOf<StabilizerEvent>()
+        var sawMoving = false
+        for (n in 0 until 60) {
+            val cx = 0.3f + 0.03f * (n.coerceIn(14, 34) - 14) // still 15 frames, moving 20, then still
+            val out = engine.onFrame(33L * n, line(cx))
+            sawMoving = sawMoving || out.moving
+            events += out.events
+        }
+        assertEquals(true, sawMoving)
+        assertEquals(listOf(StabilizerEvent.Letter("I"), StabilizerEvent.ReplaceLast("J")), events)
+    }
+
+    @Test
+    fun staticOnlyModelsNeverReportMoving() {
+        val engine = TranslatorEngine(EngineModels(always("I")))
+        val moving = (0 until 60).map { n -> engine.onFrame(33L * n, line(0.3f + 0.03f * n)).moving }
+        assertEquals(false, moving.any { it })
+    }
 }
