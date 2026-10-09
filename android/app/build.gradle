@@ -20,7 +20,7 @@ plugins {
 }
 
 android {
-    namespace 'com.google.mediapipe.examples.handlandmarker'
+    namespace 'ph.senya.app'
     compileSdk 34
 
     defaultConfig {
@@ -48,6 +48,12 @@ android {
     }
     buildFeatures {
         viewBinding true
+    }
+    testOptions {
+        unitTests.all {
+            // Shared fixtures from Person B (spec §2.1); tests skip when a file isn't there yet
+            systemProperty 'senya.fixtures', rootProject.file('../fixtures').absolutePath
+        }
     }
 }
 
@@ -96,4 +102,10 @@ dependencies {
 
     // MediaPipe Library
     implementation 'com.google.mediapipe:tasks-vision:1.0.0'
+
+    // TensorFlow Lite for Senya's own classifiers
+    implementation 'org.tensorflow:tensorflow-lite:2.16.1'
+
+    // Real org.json for JVM unit tests (android.jar only has stubs)
+    testImplementation 'org.json:json:20240303'
 }

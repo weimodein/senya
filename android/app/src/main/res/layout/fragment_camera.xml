@@ -14,11 +14,12 @@
     ~ See the License for the specific language governing permissions and
     ~ limitations under the License.
 -->
-<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/camera_container"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@android:color/black">
 
     <androidx.camera.view.PreviewView
         android:id="@+id/view_finder"
@@ -26,12 +27,8 @@
         android:layout_height="match_parent"
         app:scaleType="fillStart" />
 
-    <com.google.mediapipe.examples.handlandmarker.OverlayView
+    <ph.senya.app.OverlayView
         android:id="@+id/overlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
-
-    <include
-        android:id="@+id/bottom_sheet_layout"
-        layout="@layout/info_bottom_sheet" />
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
+</FrameLayout>
