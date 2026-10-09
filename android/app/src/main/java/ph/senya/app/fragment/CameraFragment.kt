@@ -23,6 +23,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.camera.core.AspectRatio
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
@@ -39,8 +40,12 @@ import ph.senya.app.R
 import ph.senya.app.core.EngineModels
 import ph.senya.app.core.FpsCounter
 import ph.senya.app.core.Prediction
+import ph.senya.app.core.StabilizerEvent
 import ph.senya.app.core.Transcript
 import ph.senya.app.core.TranslatorEngine
+import ph.senya.app.data.ModelRepository
+import ph.senya.app.data.ModelUpdater
+import ph.senya.app.databinding.DialogSettingsBinding
 import ph.senya.app.databinding.FragmentCameraBinding
 import ph.senya.app.ml.AssetModelSource
 import ph.senya.app.ml.Landmarks
@@ -82,6 +87,7 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
     /** While now < this, the chip keeps showing the motion letter just committed. */
     private var motionShownUntilMs = 0L
     private var speaker: Speaker? = null
+    private lateinit var repository: ModelRepository
 
     override fun onResume() {
         super.onResume()
@@ -140,7 +146,12 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
         binding.clearButton.setOnClickListener { transcript.clear(); afterEdit() }
         renderTranscript()
         showModelLabel(getString(R.string.no_model))
-        modelExecutor.execute { loadBundledModel() }
+        repository = ModelRepository(requireContext())
+        binding.settingsButton.setOnClickListener { showSettings() }
+        modelExecutor.execute {
+            loadCurrentModel()
+            checkForUpdate(manual = false)
+        }
         speaker = Speaker(requireContext()) { message -> toast(message) }
         binding.speakButton.isEnabled = true
         binding.speakButton.setOnClickListener { speaker?.speak(transcript.text) }
@@ -215,19 +226,57 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
             if (out.events.isNotEmpty()) {
                 out.events.forEach { transcript.apply(it) }
                 renderTranscript()
+                if (out.events.any { it is StabilizerEvent.Space } && repository.speakOnSpace) {
+                    speaker?.speak(transcript.lastWord())
+                }
             }
             binding.modelVersion.text = "$modelLabel · $currentFps fps"
         }
     }
 
-    private fun loadBundledModel() {
-        val ctx = context ?: return
+    /** Downloaded model, else bundled (spec §5.4). Runs on [modelExecutor]. */
+    private fun loadCurrentModel() {
         try {
-            applyBundle(ModelBundle.load(0, AssetModelSource(ctx.assets), TfliteModel::fromBytes))
+            val loaded = repository.loadCurrent()
+            applyBundle(loaded.bundle)
+            loaded.message?.let { toast(it) }
         } catch (e: ModelLoadException) {
             Log.e(TAG, "Bundled model failed to load", e)
             toast("Bundled model failed: ${e.message}")
         }
+    }
+
+    /** Runs on [modelExecutor]; on any failure the current model stays (spec §5.2). */
+    private fun checkForUpdate(manual: Boolean) {
+        when (val result = repository.checkForUpdate()) {
+            is ModelUpdater.Result.Updated -> {
+                applyBundle(result.bundle)
+                toast("Updated to model v${result.bundle.version}")
+            }
+            is ModelUpdater.Result.UpToDate -> if (manual) toast("Model is up to date")
+            is ModelUpdater.Result.NoModelPublished -> if (manual) toast("The server has no published model yet")
+            is ModelUpdater.Result.Failed -> toast("Update failed: ${result.message}. Keeping the current model.")
+        }
+    }
+
+    private fun showSettings() {
+        val dialogBinding = DialogSettingsBinding.inflate(layoutInflater)
+        dialogBinding.serverUrl.setText(repository.serverUrl)
+        dialogBinding.speakOnSpace.isChecked = repository.speakOnSpace
+        fun save() {
+            repository.serverUrl = dialogBinding.serverUrl.text.toString()
+            repository.speakOnSpace = dialogBinding.speakOnSpace.isChecked
+        }
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.settings)
+            .setView(dialogBinding.root)
+            .setPositiveButton(R.string.save) { _, _ -> save() }
+            .setNeutralButton(R.string.check_for_update) { _, _ ->
+                save()
+                modelExecutor.execute { checkForUpdate(manual = true) }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
     }
 
     /** Swaps the models the engine uses. Runs on [modelExecutor]. */

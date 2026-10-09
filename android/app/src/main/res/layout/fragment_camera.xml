@@ -61,6 +61,14 @@
                 android:shadowRadius="4"
                 android:textColor="@android:color/white"
                 android:textSize="13sp" />
+
+            <ImageButton
+                android:id="@+id/settings_button"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/settings"
+                android:src="@android:drawable/ic_menu_preferences" />
         </LinearLayout>
 
         <LinearLayout

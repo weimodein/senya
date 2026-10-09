@@ -59,4 +59,10 @@
     <string name="clear">Clear</string>
     <string name="no_model">No model loaded</string>
     <string name="no_guess">—</string>
+    <string name="settings">Settings</string>
+    <string name="server_url">Server URL</string>
+    <string name="speak_on_space">Speak each word automatically</string>
+    <string name="save">Save</string>
+    <string name="check_for_update">Check for update</string>
+    <string name="cancel">Cancel</string>
 </resources>
