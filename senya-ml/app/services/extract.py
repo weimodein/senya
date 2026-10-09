@@ -9,6 +9,7 @@ The clip itself is written to a temp file only for decoding and deleted before r
 from __future__ import annotations
 
 import base64
+import math
 import os
 import tempfile
 from typing import Optional
@@ -33,6 +34,10 @@ STATIC_MAX_SAMPLES = int(os.getenv("STATIC_MAX_SAMPLES", 60))
 MOTION_MAX_FPS = float(os.getenv("MOTION_MAX_FPS", 30))
 # Padding kept around the detected signing span, so the start and end of the movement survive.
 TRIM_PAD_MS = int(os.getenv("TRIM_PAD_MS", 150))
+# Static signs: only the HOLD is kept (see find_hold). Speeds are in hand sizes per second.
+HOLD_SPEED = float(os.getenv("HOLD_SPEED", 0.5))
+MIN_HOLD_MS = int(os.getenv("MIN_HOLD_MS", 300))
+HOLD_TRIM_MS = int(os.getenv("HOLD_TRIM_MS", 100))
 MAX_SIDE = int(os.getenv("EXTRACT_MAX_SIDE", 640))
 DEFAULT_FPS = 30.0
 THUMB_SIZE = 72
@@ -128,13 +133,70 @@ def _signing_span(frames: list) -> Optional[tuple]:
     return hits[0] - TRIM_PAD_MS, hits[-1] + TRIM_PAD_MS
 
 
+def _hand_size(p) -> float:
+    return max(math.hypot(p[i * 3] - p[0], p[i * 3 + 1] - p[1]) for i in range(1, contract.POINTS))
+
+
+def _speeds(frames: list) -> list:
+    """Hand speed per frame, in hand sizes per second (the segmenter's unit), smoothed over 3 frames.
+    None where the hand is missing in this or the previous frame."""
+    raw, prev = [], None
+    for f in frames:
+        cur, before = f["landmarks"], prev["landmarks"] if prev else None
+        if cur is None or before is None:
+            raw.append(None)
+        else:
+            dt = (f["t_ms"] - prev["t_ms"]) / 1000
+            size = _hand_size(cur)
+            moved = sum(math.hypot(cur[i * 3] - before[i * 3], cur[i * 3 + 1] - before[i * 3 + 1])
+                        for i in range(contract.POINTS))
+            raw.append(moved / contract.POINTS / size / dt if dt > 0 and size > 0 else None)
+        prev = f
+    out = []
+    for i in range(len(raw)):
+        window = raw[max(0, i - 1):i + 2]
+        out.append(None if any(v is None for v in window) else sum(window) / len(window))
+    return out
+
+
+def find_hold(frames: list) -> Optional[list]:
+    """The frames where the letter is actually held: clips go rest -> raise -> HOLD -> lower -> rest.
+
+    Measured on real FSL letter clips, the raise and lower move at 3-17 hand sizes/s and the hold at 0.0-0.3, so
+    the hold is a run of near-still frames. Several runs can exist (a visible resting hand is still too); the hold
+    is the one where the hand is highest (smallest wrist y), since signers raise the hand to sign. Its first and
+    last HOLD_TRIM_MS are dropped: that is where the hand settles in and starts to leave.
+    """
+    speeds = _speeds(frames)
+    runs, start = [], None
+    for i, s in enumerate(speeds + [None]):
+        still = s is not None and s <= HOLD_SPEED
+        if still and start is None:
+            start = i
+        elif not still and start is not None:
+            runs.append((start, i - 1))
+            start = None
+    runs = [(a, b) for a, b in runs if frames[b]["t_ms"] - frames[a]["t_ms"] >= MIN_HOLD_MS]
+    if not runs:
+        return None
+
+    def height(run):  # median wrist y over the run; smaller = higher in the picture
+        ys = sorted(frames[i]["landmarks"][1] for i in range(run[0], run[1] + 1))
+        return ys[len(ys) // 2]
+
+    a, b = min(runs, key=lambda r: (round(height(r), 2), -(r[1] - r[0])))
+    lo, hi = frames[a]["t_ms"] + HOLD_TRIM_MS, frames[b]["t_ms"] - HOLD_TRIM_MS
+    return [f for f in frames[a:b + 1] if lo <= f["t_ms"] <= hi] or frames[a:b + 1]
+
+
 def _static_from_video(frames: list) -> dict:
-    span = _signing_span(frames)
-    if span is None:
+    if _signing_span(frames) is None:
         raise ExtractionError("no hand found in this clip")
-    inside = [f for f in frames if span[0] <= f["t_ms"] <= span[1]]
+    hold = find_hold(frames)
+    if hold is None:
+        raise ExtractionError("the hand never held still: hold the letter steady for about a second")
     picked, next_t = [], None
-    for f in inside:
+    for f in hold:
         if next_t is None or f["t_ms"] >= next_t:
             picked.append(f)
             next_t = f["t_ms"] + STATIC_STEP_MS
