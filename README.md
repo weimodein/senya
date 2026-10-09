@@ -48,3 +48,6 @@ AppBuildersPH Hackathon 2026 · Theme: Local AI
 ## Running it
 - Platform: see `platform/README.md`.
 - Android app: see `android/README.md`.
+
+## License
+Apache License 2.0 — see `LICENSE` and `NOTICE`. The Android app started from the MediaPipe hand landmarker sample (also Apache 2.0); see `android/README.md`.

@@ -1,0 +1,11 @@
+Senya
+Copyright 2026 The Senya contributors
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This project includes code from:
+
+  MediaPipe Samples — examples/hand_landmarker/android
+  https://github.com/google-ai-edge/mediapipe-samples
+  Copyright 2022 The TensorFlow Authors. All rights reserved.
+  Licensed under the Apache License, Version 2.0 (see android/LICENSE-mediapipe-samples).
