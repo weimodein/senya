@@ -84,6 +84,13 @@
         <item name="android:textColor">@color/senya_ink</item>
     </style>
 
+    <style name="SenyaCompactButton" parent="SenyaPrimaryButton">
+        <item name="android:minHeight">44dp</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:paddingStart">20dp</item>
+        <item name="android:paddingEnd">20dp</item>
+    </style>
+
     <style name="SenyaToolButton" parent="Widget.MaterialComponents.Button.UnelevatedButton">
         <item name="android:insetTop">0dp</item>
         <item name="android:insetBottom">0dp</item>

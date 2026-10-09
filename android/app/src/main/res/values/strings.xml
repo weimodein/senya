@@ -137,13 +137,14 @@
     <string name="update_verifying_title">Verifying files…</string>
     <string name="update_verifying_body">Checking the downloaded models.</string>
     <string name="update_updated_title">Updated successfully</string>
-    <string name="update_updated_body">v%1$d → v%2$d\nThe latest model is ready to use.</string>
+    <string name="update_updated_body">The latest model is ready to use.</string>
+    <string name="update_versions">v%1$d → v%2$d</string>
     <string name="update_failed_title">Update failed</string>
     <string name="update_failed_body">%s.\nKept your current model.</string>
     <string name="update_static_only_title">Continuing static-only</string>
     <string name="update_static_only_body">The motion model couldn\'t be installed.</string>
     <string name="update_rolled_back_title">Rolled back</string>
-    <string name="update_rolled_back_body">v%1$d → v%2$d\nThe server restored an earlier model.</string>
+    <string name="update_rolled_back_body">The server restored an earlier model.</string>
     <string name="update_up_to_date_title">You\'re up to date</string>
     <string name="update_up_to_date_body">You have the latest model.</string>
     <string name="update_no_model_title">No model published yet</string>
