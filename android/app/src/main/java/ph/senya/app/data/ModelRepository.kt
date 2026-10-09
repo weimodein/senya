@@ -5,6 +5,7 @@ import ph.senya.app.BuildConfig
 import ph.senya.app.ml.AssetModelSource
 import ph.senya.app.ml.DirModelSource
 import ph.senya.app.ml.ModelBundle
+import ph.senya.app.ml.ModelInfo
 import ph.senya.app.ml.ModelLoadException
 import ph.senya.app.ml.TfliteModel
 import java.io.File
@@ -50,6 +51,13 @@ class ModelRepository(context: Context) {
             }
         }
         return Loaded(ModelBundle.load(0, AssetModelSource(appContext.assets), TfliteModel::fromBytes), message)
+    }
+
+    /** The installed model's description, else the bundled one's; null if neither can be read. Reads only label files. */
+    fun currentInfo(): ModelInfo? {
+        val v = installedVersion
+        if (v != 0) ModelInfo.read(v, DirModelSource(updater.installedDir(v)))?.let { return it }
+        return ModelInfo.read(0, AssetModelSource(appContext.assets))
     }
 
     /** Blocks on the network; call off the main thread. See [ModelUpdater.check] for [force], [onStep] and [isCancelled]. */
