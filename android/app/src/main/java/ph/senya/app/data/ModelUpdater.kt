@@ -46,12 +46,25 @@ class ModelUpdater(
 
     fun installedDir(version: Int) = File(modelsDir, "v$version")
 
-    fun check(baseUrl: String, localVersion: Int): Result {
+    /**
+     * One check at a time per process: rotating the phone starts a second check while the first may still be
+     * downloading into the same folder. Never throws; every failure is a [Result.Failed].
+     */
+    fun check(baseUrl: String, localVersion: Int): Result = synchronized(LOCK) {
+        try {
+            checkLocked(baseUrl, localVersion)
+        } catch (e: RuntimeException) {
+            Result.Failed("unexpected error (${e.message})")
+        }
+    }
+
+    private fun checkLocked(baseUrl: String, localVersion: Int): Result {
         val base = try {
             URL(baseUrl.trim().trimEnd('/') + "/")
         } catch (e: MalformedURLException) {
             return Result.Failed("bad server URL: $baseUrl")
         }
+        if (base.protocol != "http" && base.protocol != "https") return Result.Failed("bad server URL: $baseUrl")
         val latest = try {
             LatestModel.parse(String(fetch(URL(base, "api/model/latest")), Charsets.UTF_8))
         } catch (e: HttpStatusException) {
@@ -110,5 +123,9 @@ class ModelUpdater(
     private fun checkSha(dir: File, name: String, expected: String): String? {
         val actual = sha256Hex(File(dir, name).readBytes())
         return if (actual.equals(expected, ignoreCase = true)) null else "checksum mismatch for $name"
+    }
+
+    private companion object {
+        val LOCK = Any()
     }
 }

@@ -11,6 +11,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import ph.senya.app.ml.ModelFiles
+import ph.senya.app.testutil.FakeModel
 import ph.senya.app.testutil.TestModels
 import ph.senya.app.testutil.TestServer
 import java.io.File
@@ -119,6 +120,50 @@ class ModelUpdaterTest {
     @Test
     fun badUrlFails() {
         assertTrue(updater.check("not a url", 0) is ModelUpdater.Result.Failed)
+    }
+
+    @Test
+    fun modelThatThrowsOnGoldenFailsInsteadOfCrashing() {
+        publish(3)
+        val crashing = ModelUpdater(modelsDir, { FakeModel(intArrayOf(1, 63), 2) { throw IllegalStateException("bad shape") } })
+        val result = crashing.check(server.baseUrl, 0)
+        assertTrue(result is ModelUpdater.Result.Failed)
+        assertFalse(updater.installedDir(3).exists())
+        assertTrue(leftovers().isEmpty())
+    }
+
+    @Test
+    fun nonHttpUrlFailsInsteadOfCrashing() {
+        assertTrue(updater.check("file:///etc/hosts", 0) is ModelUpdater.Result.Failed)
+        assertTrue(updater.check("ftp://example.com", 0) is ModelUpdater.Result.Failed)
+    }
+
+    /** Rotating the phone starts a second check while the first may still be downloading (same models folder). */
+    @Test
+    fun concurrentChecksAreSerialized() {
+        publish(3)
+        val firstStarted = java.util.concurrent.CountDownLatch(1)
+        val releaseFirst = java.util.concurrent.CountDownLatch(1)
+        val secondFetches = java.util.concurrent.atomic.AtomicInteger(0)
+        val first = ModelUpdater(modelsDir, TestModels.factory) { url ->
+            if (url.path.endsWith("model.tflite")) { firstStarted.countDown(); releaseFirst.await() }
+            ph.senya.app.data.httpGet(url)
+        }
+        val second = ModelUpdater(modelsDir, TestModels.factory) { url ->
+            secondFetches.incrementAndGet()
+            ph.senya.app.data.httpGet(url)
+        }
+        val results = java.util.concurrent.ConcurrentLinkedQueue<ModelUpdater.Result>()
+        val t1 = Thread { results += first.check(server.baseUrl, 0) }.also { it.start() }
+        assertTrue(firstStarted.await(5, java.util.concurrent.TimeUnit.SECONDS))
+        val t2 = Thread { results += second.check(server.baseUrl, 0) }.also { it.start() }
+        Thread.sleep(400)
+        assertEquals("second check must wait for the first", 0, secondFetches.get())
+        releaseFirst.countDown()
+        t1.join(5000); t2.join(5000)
+        assertEquals(2, results.size)
+        assertTrue(results.all { it is ModelUpdater.Result.Updated })
+        assertTrue(File(updater.installedDir(3), ModelFiles.MODEL).isFile)
     }
 
     @Test

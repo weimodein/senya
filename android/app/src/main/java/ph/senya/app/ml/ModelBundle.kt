@@ -44,6 +44,10 @@ class ModelBundle private constructor(
             } catch (e: ModelLoadException) {
                 classifier.close()
                 throw e
+            } catch (e: RuntimeException) {
+                // TFLite throws unchecked exceptions for wrong-shaped samples or outputs
+                classifier.close()
+                throw ModelLoadException("${ModelFiles.GOLDEN}: ${e.message}", e)
             }
             return classifier
         }
@@ -57,6 +61,9 @@ class ModelBundle private constructor(
             } catch (e: ModelLoadException) {
                 classifier.close()
                 throw e
+            } catch (e: RuntimeException) {
+                classifier.close()
+                throw ModelLoadException("${ModelFiles.MOTION_GOLDEN}: ${e.message}", e)
             }
             return classifier
         }

@@ -254,12 +254,23 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
         } catch (e: ModelLoadException) {
             Log.e(TAG, "Bundled model failed to load", e)
             toast("Bundled model failed: ${e.message}")
+        } catch (e: Exception) {
+            // Last line of defence: an uncaught exception on this thread would kill the app
+            Log.e(TAG, "Model load crashed", e)
+            toast("Model failed to load: ${e.message}")
         }
     }
 
     /** Runs on [modelExecutor]; on any failure the current model stays (spec §5.2). */
     private fun checkForUpdate(manual: Boolean) {
-        when (val result = repository.checkForUpdate()) {
+        val result = try {
+            repository.checkForUpdate()
+        } catch (e: Exception) {
+            Log.e(TAG, "Update check crashed", e)
+            toast("Update failed: ${e.message}. Keeping the current model.")
+            return
+        }
+        when (result) {
             is ModelUpdater.Result.Updated -> {
                 applyBundle(result.bundle)
                 toast("Updated to model v${result.bundle.version}")

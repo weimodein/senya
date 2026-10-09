@@ -9,6 +9,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import ph.senya.app.core.Prediction
+import ph.senya.app.testutil.FakeModel
 import ph.senya.app.testutil.TestModels
 import java.io.File
 
@@ -94,6 +95,36 @@ class ModelBundleTest {
         val bundle = load(TestModels.writeFolder(tmp.newFolder(), motionConfig = """{"start_speed": 2.5}"""))
         assertEquals(2.5f, bundle.motionConfig.startSpeed, 1e-6f)
         assertEquals(200L, bundle.motionConfig.stopHoldMs)
+    }
+
+    /** TFLite throws IllegalArgumentException/IllegalStateException when a golden sample has the wrong shape. */
+    private fun throwingFactory(motionToo: Boolean = true): (ByteArray) -> ProbabilityModel = { bytes ->
+        when (String(bytes)) {
+            "static" -> TestModels.staticAB()
+            "motion" -> if (motionToo) FakeModel(intArrayOf(1, 32, 63), 3) { throw IllegalStateException("bad input shape") }
+                        else TestModels.motionNoneJZ()
+            else -> throw IllegalArgumentException("not a model")
+        }
+    }
+
+    @Test
+    fun runtimeFailureInMotionGoldenFallsBackToStaticOnly() {
+        val dir = TestModels.writeFolder(tmp.newFolder())
+        val bundle = ModelBundle.load(1, DirModelSource(dir), throwingFactory())
+        assertNull(bundle.motion)
+        assertTrue(bundle.warning!!.contains("motion_golden.json"))
+    }
+
+    @Test
+    fun runtimeFailureInStaticGoldenIsRejectedNotThrown() {
+        val dir = TestModels.writeFolder(tmp.newFolder())
+        val factory: (ByteArray) -> ProbabilityModel = { FakeModel(intArrayOf(1, 63), 2) { throw IllegalArgumentException("bad shape") } }
+        try {
+            ModelBundle.load(1, DirModelSource(dir), factory)
+            fail("expected ModelLoadException")
+        } catch (e: ModelLoadException) {
+            assertTrue(e.message!!.contains("golden.json"))
+        }
     }
 
     @Test
