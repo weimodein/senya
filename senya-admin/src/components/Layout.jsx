@@ -22,7 +22,7 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-[#F6F7F9] text-[#202630]">
-      <header className="border-b border-[#DDE4ED] bg-white">
+      <header className="sticky top-0 z-50 border-b border-[#DDE4ED] bg-white shadow-[0_1px_0_rgba(32,38,48,0.03)]">
         <nav className="mx-auto flex min-h-[72px] w-full min-w-0 max-w-[1160px] flex-wrap items-center gap-x-7 gap-y-1 overflow-hidden px-5 py-3 sm:px-8 lg:px-10" aria-label="Admin navigation">
           <Link to="/" className="mr-2 inline-flex min-h-11 items-center gap-2" aria-label="SENYA admin home">
             <img src="/brand/senya-logo-primary.svg" alt="SENYA" className="h-9 w-auto" />
