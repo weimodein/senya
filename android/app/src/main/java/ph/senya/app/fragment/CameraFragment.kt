@@ -36,8 +36,17 @@ import androidx.navigation.Navigation
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import ph.senya.app.HandLandmarkerHelper
 import ph.senya.app.R
+import ph.senya.app.core.EngineModels
+import ph.senya.app.core.FpsCounter
+import ph.senya.app.core.Prediction
+import ph.senya.app.core.Transcript
+import ph.senya.app.core.TranslatorEngine
 import ph.senya.app.databinding.FragmentCameraBinding
+import ph.senya.app.ml.AssetModelSource
 import ph.senya.app.ml.Landmarks
+import ph.senya.app.ml.ModelBundle
+import ph.senya.app.ml.ModelLoadException
+import ph.senya.app.ml.TfliteModel
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -61,6 +70,15 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
     /** Blocking ML operations are performed using this executor */
     private lateinit var backgroundExecutor: ExecutorService
 
+    /** Loads and swaps models, so model work never blocks camera frames. */
+    private lateinit var modelExecutor: ExecutorService
+    private val engine = TranslatorEngine(EngineModels(static = null))
+    private val transcript = Transcript()
+    /** Only touched on [modelExecutor]. */
+    private var bundle: ModelBundle? = null
+    private val fps = FpsCounter()
+    @Volatile private var modelLabel = ""
+
     override fun onResume() {
         super.onResume()
         // Make sure that all permissions are still present, since the
@@ -83,6 +101,9 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
     }
 
     override fun onDestroyView() {
+        engine.setModels(EngineModels(static = null))
+        modelExecutor.execute { bundle?.close(); bundle = null }
+        modelExecutor.shutdown()
         _binding = null
         super.onDestroyView()
         backgroundExecutor.shutdown()
@@ -98,6 +119,7 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         backgroundExecutor = Executors.newSingleThreadExecutor()
+        modelExecutor = Executors.newSingleThreadExecutor()
         binding.viewFinder.post { setUpCamera() }
         backgroundExecutor.execute {
             handLandmarkerHelper = HandLandmarkerHelper(
@@ -108,6 +130,11 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
                 handLandmarkerHelperListener = this
             )
         }
+        binding.backspaceButton.setOnClickListener { transcript.backspace(); afterEdit() }
+        binding.clearButton.setOnClickListener { transcript.clear(); afterEdit() }
+        renderTranscript()
+        showModelLabel(getString(R.string.no_model))
+        modelExecutor.execute { loadBundledModel() }
     }
 
     // Initialize CameraX, and prepare to bind the camera use cases
@@ -160,18 +187,66 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
     override fun onResults(resultBundle: HandLandmarkerHelper.ResultBundle) {
         val result = resultBundle.results.first()
         val landmarks = Landmarks.fromResult(result)
-        Log.d(TAG, "frame t=${result.timestampMs()} hand=${landmarks != null} " +
-            (landmarks?.take(6)?.joinToString(",") ?: ""))
+        val out = engine.onFrame(result.timestampMs(), landmarks)
+        val currentFps = fps.tick(result.timestampMs())
         activity?.runOnUiThread {
             if (_binding == null) return@runOnUiThread
             binding.overlay.setResults(
                 result, resultBundle.inputImageHeight, resultBundle.inputImageWidth, RunningMode.LIVE_STREAM
             )
             binding.overlay.invalidate()
+            binding.handHint.visibility = if (landmarks == null) View.VISIBLE else View.GONE
+            showGuess(out.staticGuess)
+            if (out.events.isNotEmpty()) {
+                out.events.forEach { transcript.apply(it) }
+                renderTranscript()
+            }
+            binding.modelVersion.text = "$modelLabel · $currentFps fps"
         }
     }
 
-    override fun onError(error: String, errorCode: Int) {
-        activity?.runOnUiThread { Toast.makeText(requireContext(), error, Toast.LENGTH_SHORT).show() }
+    private fun loadBundledModel() {
+        val ctx = context ?: return
+        try {
+            applyBundle(ModelBundle.load(0, AssetModelSource(ctx.assets), TfliteModel::fromBytes))
+        } catch (e: ModelLoadException) {
+            Log.e(TAG, "Bundled model failed to load", e)
+            toast("Bundled model failed: ${e.message}")
+        }
     }
+
+    /** Swaps the models the engine uses. Runs on [modelExecutor]. */
+    private fun applyBundle(newBundle: ModelBundle) {
+        engine.setModels(EngineModels(newBundle.static, newBundle.motion, newBundle.motionConfig))
+        bundle?.close()
+        bundle = newBundle
+        val kind = if (newBundle.motion == null) " · static only" else ""
+        showModelLabel("Model v${newBundle.version}$kind")
+        newBundle.warning?.let { toast(it) }
+    }
+
+    private fun showModelLabel(text: String) {
+        modelLabel = text
+        activity?.runOnUiThread { _binding?.modelVersion?.text = text }
+    }
+
+    private fun showGuess(guess: Prediction?) {
+        binding.guessLabel.text = guess?.label ?: getString(R.string.no_guess)
+        binding.guessConfidence.progress = ((guess?.confidence ?: 0f) * 100).toInt()
+    }
+
+    private fun afterEdit() {
+        engine.onTranscriptEdited(transcript.isEmpty || transcript.endsWithSpace)
+        renderTranscript()
+    }
+
+    private fun renderTranscript() {
+        binding.transcript.text = transcript.text.ifEmpty { getString(R.string.transcript_placeholder) }
+    }
+
+    private fun toast(message: String) {
+        activity?.runOnUiThread { context?.let { Toast.makeText(it, message, Toast.LENGTH_SHORT).show() } }
+    }
+
+    override fun onError(error: String, errorCode: Int) = toast(error)
 }

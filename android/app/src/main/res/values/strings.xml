@@ -49,4 +49,14 @@
         <item>CPU</item>
         <item>GPU</item>
     </string-array>
+
+    <string name="offline_badge">Offline · on-device</string>
+    <string name="hand_hint">Show your hand to the camera</string>
+    <string name="transcript_placeholder">Fingerspell to start…</string>
+    <string name="speak">Speak</string>
+    <string name="backspace">⌫</string>
+    <string name="backspace_description">Backspace</string>
+    <string name="clear">Clear</string>
+    <string name="no_model">No model loaded</string>
+    <string name="no_guess">—</string>
 </resources>
