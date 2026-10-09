@@ -47,7 +47,7 @@ How the pieces of Senya connect: the components, every API between them, the dat
 | `POST /train` returns `202` at once. The ML service then calls back with `progress`, `result` or `fail`, and progress is a database column | Training takes minutes; nothing waits on an open request, and a restart on either side loses nothing |
 | One `model_versions` row per version; its static and motion files hang off it in `model_files` | A version is always complete; static and motion models can't drift apart |
 | Model files are stored in Postgres (`bytea`, tens of KB) and served at immutable `/models/v{n}/…` URLs | No storage buckets, no stale caches |
-| Integer versions, assigned by the backend | Matches the `version` integer the app compares |
+| Integer versions from a Postgres sequence (`002_model_version_sequence.sql`) | Matches the `version` integer the app compares; a number is never reused, even after the newest version is deleted, so a phone can't mistake a new model for one it already has |
 | Clips are never stored. The ML service extracts landmarks, and the clip is deleted | Privacy: video of the signer never persists anywhere |
 | One synchronous request per uploaded file | No background job table; the panel shows per-file progress naturally |
 | One admin account, set from env vars | Enough for a two-person team |
@@ -97,12 +97,15 @@ senya/
 
   senya-admin/
     vite.config.js             dev proxy: /api, /models, /health → :8000 (so the panel is always same-origin)
-    src/index.css              design tokens (CSS variables): paper surfaces, ink text levels, clay accent
+    README.md                  where to change what (look vs. logic), for whoever restyles the panel
     src/api/client.js          the panel's only HTTP client: axios + JWT, logs out on 401
     src/api/index.js           auth, signs, models calls; training thresholds
-    src/context/               AuthContext (login/session), ToastContext
-    src/components/            Layout (sidebar + "On phones"), ProtectedRoute, ui.jsx (Button, Badge, Glyph, Readiness, …)
-    src/pages/                 Login, Signs (alphabet chart), SignDetail (upload queue), Models (train / deploy / roll back)
+    src/context/               AuthContext (login / session); UploadQueueContext + TrainingContext: app-wide, so uploads
+                               and training keep going (and stay visible) while the admin changes pages
+    src/hooks/                 ALL state and actions: useSigns, useSign (+ upload queue), useModels (+ polling)
+    src/components/ui.jsx      ALL shared styling: Button, Input, Card, Badge, ProgressBar, … (plain Tailwind)
+    src/components/            Layout (top bar), JobDock (bottom-right upload / training banners), ProtectedRoute
+    src/pages/                 markup only: Login, Signs, SignDetail, Models
 ```
 
 ---
@@ -117,7 +120,7 @@ Admin                       Backend                                  ML service
   │ (multipart: file)         │ POST /extract  (X-API-Key)              │
   │ ───────────────────────►  │ file + kind=static|motion ────────────► │ decode, find the hand in every frame,
   │                           │                                         │ trim to the signing span
-  │                           │ ◄──── {samples | sequences, counts} ─── │ static: sampled hand frames
+  │                           │ ◄──── {samples | sequences, counts} ─── │ static: only the HOLD (see below)
   │                           │ insert Upload + Samples (one tx)        │ motion: segmenter → raw sequences
   │ ◄── 201 upload summary ── │                                         │ clip deleted
 ```
@@ -206,7 +209,7 @@ All three `models/:id` callbacks return `409` once the row is no longer `trainin
 - `GET /health` → `{"status": "ok", "training": <model_id|null>}` (no key needed)
 - `POST /extract`, multipart: `file`, `kind` (`static` | `motion`). Landmarks are 63 raw floats (CONTRACT.md §3 item 1), never normalized.
   ```json
-  // static: one frame every 100 ms inside the signing span, at most 60 per clip
+  // static: one frame every 100 ms from the HOLD only, at most 60 per clip
   {"kind": "static", "no_hand_frames": 4,
    "samples": [{"landmarks": [63 floats], "handedness": "Right", "frame_index": 12, "thumb": "data:image/jpeg;base64,…"}]}
   // motion: raw (not resampled) movement segments
@@ -214,7 +217,9 @@ All three `models/:id` callbacks return `409` once the row is no longer `trainin
    "sequences": [{"duration_ms": 1100, "handedness": "Right", "thumb": "…",
                   "frames": [{"t_ms": 0, "landmarks": [63 floats] | null}, …]}]}
   ```
-  `422` if no hand or no complete movement is found.
+  `422` if no hand, no hold (static) or no complete movement (motion) is found.
+
+  **Static clips go rest → raise → hold → lower → rest; only the hold is kept.** Measured on real FSL letter clips, the raise and lower move at 3–17 hand sizes/s and the hold at 0–0.3. `find_hold` takes the longest run of frames slower than `HOLD_SPEED` (0.5) lasting at least `MIN_HOLD_MS` (300). If several runs qualify (a resting hand in view is still too), it takes the one where the hand is highest. It then trims `HOLD_TRIM_MS` (100) off each end. On 25 real static letters this kept a clean hold every time (5–16 samples per clip).
 - `POST /train` `{model_id}` → `202`, or `409` if a run is already going. The run downloads the dataset, trains both models, checks TFLite against Keras, makes the golden files, and calls back.
 
 ---
@@ -284,7 +289,7 @@ Tests: `npm test` in `senya-backend/` (uses `DATABASE_URL`, in its own `senya_te
 | M2 | Every admin and `/api/ml` route works (`senya-backend` `npm test`) | done — 11/11 against Supabase |
 | M3 | Real clips → extraction → training → callbacks → `trained`, locally | done — 6 FSL clips, 95% validation accuracy |
 | M4 | The same loop from the admin panel in a browser | done — real clips uploaded, trained, deployed and rolled back from the panel |
-| M5 | The same loop on the Render URL, with the ML service behind the tunnel | next |
+| M5 | The same loop on the Render URL, with the ML service behind the tunnel | done — https://senya-k2wd.onrender.com, ML via ngrok |
 | M6 | Real data → deploy → phone downloads → airplane-mode demo | |
 
 ---

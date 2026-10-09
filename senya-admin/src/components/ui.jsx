@@ -1,93 +1,79 @@
-import { Loader2 } from "lucide-react";
+// Every shared piece of styling lives here. Restyle the whole panel by editing this one file.
 
-const BUTTON = {
-  primary: "bg-clay text-card hover:bg-clay-deep shadow-lift",
-  secondary: "bg-card text-ink hover:bg-well shadow-lift",
-  ghost: "text-ink-2 hover:bg-well hover:text-ink",
-  danger: "text-rust hover:bg-rust-wash",
-};
-
-export function Button({ variant = "secondary", size = "md", loading, icon: Icon, children, className = "", ...props }) {
-  const sizing = size === "sm" ? "h-8 px-2.5 text-meta gap-1.5" : "h-9 px-3.5 text-body gap-2";
+export function Button({ variant = "default", className = "", ...props }) {
+  const styles = {
+    default: "bg-white border border-gray-300 text-gray-800 hover:bg-gray-100",
+    primary: "bg-blue-600 text-white hover:bg-blue-700",
+    danger: "bg-white border border-red-300 text-red-700 hover:bg-red-50",
+  };
   return (
     <button
-      className={`inline-flex shrink-0 items-center justify-center rounded-sm font-medium transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] disabled:pointer-events-none disabled:opacity-45 ${sizing} ${BUTTON[variant]} ${className}`}
-      disabled={loading || props.disabled}
+      className={`rounded px-3 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 ${styles[variant]} ${className}`}
       {...props}
-    >
-      {loading ? <Loader2 className="size-4 animate-spin" /> : Icon && <Icon className="size-4" />}
+    />
+  );
+}
+
+export function Input({ label, className = "", ...props }) {
+  return (
+    <label className={`flex flex-col gap-1 text-sm ${className}`}>
+      {label && <span className="font-medium text-gray-700">{label}</span>}
+      <input className="rounded border border-gray-300 px-2 py-1.5 focus:border-blue-500 focus:outline-none" {...props} />
+    </label>
+  );
+}
+
+export function Card({ title, className = "", children }) {
+  return (
+    <section className={`rounded-lg border border-gray-200 bg-white p-4 ${className}`}>
+      {title && <h2 className="mb-3 font-semibold">{title}</h2>}
       {children}
-    </button>
+    </section>
   );
 }
 
-const TONES = {
-  live: "bg-clay-wash text-clay-deep",
-  ok: "bg-leaf-wash text-leaf",
-  busy: "bg-ochre-wash text-ochre",
-  bad: "bg-rust-wash text-rust",
-  plain: "bg-well text-ink-3",
-};
-
-export function Badge({ tone = "plain", children, className = "" }) {
+export function PageTitle({ title, subtitle, action }) {
   return (
-    <span className={`inline-flex h-5 items-center gap-1 rounded-full px-2 text-caption font-medium normal-case ${TONES[tone]} ${className}`}>
-      {children}
-    </span>
-  );
-}
-
-/** A sign drawn like an entry on an alphabet chart. Multi-letter labels (NG, _none) step down in size. */
-export function Glyph({ label, size = "md", className = "" }) {
-  const isNone = label === "_none";
-  const text = isNone ? "∅" : label;
-  const scale = {
-    sm: text.length > 2 ? "text-[15px]" : "text-[22px]",
-    md: text.length > 2 ? "text-[20px]" : text.length === 2 ? "text-[34px]" : "text-[44px]",
-    lg: text.length > 2 ? "text-[28px]" : text.length === 2 ? "text-[48px]" : "text-[64px]",
-  }[size];
-  return (
-    <span
-      className={`font-glyph font-semibold leading-none tracking-[-0.03em] ${isNone ? "text-ink-4" : "text-ink"} ${scale} ${className}`}
-    >
-      {text}
-    </span>
-  );
-}
-
-/** Data collected toward the training threshold. Fills ochre, turns leaf once the sign is ready. */
-export function Readiness({ count, target, className = "" }) {
-  const ratio = Math.min(1, count / target);
-  const ready = count >= target;
-  return (
-    <div className={className}>
-      <div className="h-1.5 overflow-hidden rounded-full bg-well">
-        <div
-          className={`h-full rounded-full transition-[width] duration-500 ease-out ${ready ? "bg-leaf" : count ? "bg-ochre" : ""}`}
-          style={{ width: `${ratio * 100}%` }}
-        />
+    <div className="mb-6 flex items-start justify-between gap-4">
+      <div>
+        <h1 className="text-2xl font-bold">{title}</h1>
+        {subtitle && <p className="mt-1 text-sm text-gray-600">{subtitle}</p>}
       </div>
+      {action}
     </div>
   );
 }
 
-export function Spinner({ className = "" }) {
-  return <Loader2 className={`size-4 animate-spin text-ink-3 ${className}`} />;
+/** color: gray | green | yellow | red | blue */
+export function Badge({ color = "gray", children }) {
+  const colors = {
+    gray: "bg-gray-100 text-gray-700",
+    green: "bg-green-100 text-green-800",
+    yellow: "bg-yellow-100 text-yellow-800",
+    red: "bg-red-100 text-red-800",
+    blue: "bg-blue-100 text-blue-800",
+  };
+  return <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${colors[color]}`}>{children}</span>;
 }
 
-export function Empty({ icon: Icon, title, children }) {
+/** value: 0..1 */
+export function ProgressBar({ value, color = "blue" }) {
+  const colors = { blue: "bg-blue-600", green: "bg-green-600", yellow: "bg-yellow-500" };
   return (
-    <div className="flex flex-col items-center gap-2 px-6 py-12 text-center">
-      {Icon && <Icon className="size-6 text-ink-4" strokeWidth={1.5} />}
-      <p className="text-h3 font-medium text-ink-2">{title}</p>
-      {children && <p className="max-w-sm text-body text-ink-3">{children}</p>}
+    <div className="h-2 w-full overflow-hidden rounded bg-gray-200">
+      <div className={`h-full ${colors[color]}`} style={{ width: `${Math.min(100, Math.max(0, value * 100))}%` }} />
     </div>
   );
 }
 
-export const formatWhen = (iso) =>
-  iso
-    ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
-    : "—";
+export function ErrorText({ children }) {
+  if (!children) return null;
+  return <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{children}</p>;
+}
 
-export const pct = (x) => (x == null ? "—" : `${(x * 100).toFixed(1)}%`);
+export function Loading() {
+  return <p className="text-sm text-gray-500">Loading…</p>;
+}
+
+export const formatDate = (iso) => (iso ? new Date(iso).toLocaleString() : "—");
+export const percent = (x) => (x == null ? "—" : `${(x * 100).toFixed(1)}%`);

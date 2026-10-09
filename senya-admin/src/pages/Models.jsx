@@ -1,257 +1,121 @@
-import { useCallback, useEffect, useState } from "react";
-import { Boxes, CircleAlert, Play, RotateCcw, Rocket, Smartphone, Trash2 } from "lucide-react";
-import { models as modelsApi, signs as signsApi, MIN_STATIC_SAMPLES } from "../api/index.js";
-import { errorMessage } from "../api/client.js";
-import { useToast } from "../context/ToastContext.jsx";
-import { Badge, Button, Empty, Spinner, formatWhen, pct } from "../components/ui.jsx";
+import { useState } from "react";
+import useModels from "../hooks/useModels.js";
+import { Badge, Button, Card, ErrorText, Loading, PageTitle, ProgressBar, formatDate, percent } from "../components/ui.jsx";
 
 const STATUS = {
-  deployed: ["live", "On phones"],
-  trained: ["ok", "Ready"],
-  training: ["busy", "Training"],
-  failed: ["bad", "Failed"],
+  deployed: { color: "blue", text: "On phones" },
+  trained: { color: "green", text: "Ready" },
+  training: { color: "yellow", text: "Training" },
+  failed: { color: "red", text: "Failed" },
 };
 
-function Labels({ labels, motion }) {
-  if (!labels?.length && !motion?.length) return <span className="text-ink-4">—</span>;
-  return (
-    <span className="flex flex-wrap gap-1">
-      {[...(labels || []), ...(motion || []).filter((l) => l !== "_none")].map((l) => (
-        <span key={l} className="grid h-6 min-w-6 place-items-center rounded-[5px] bg-well px-1.5 font-glyph text-[13px] font-semibold">
-          {l}
-        </span>
-      ))}
-    </span>
-  );
-}
-
-/** The run in progress: the one thing on this page that changes by itself. */
-function TrainingCard({ model, onDelete }) {
-  const stuck = model.message?.includes("run-job");
-  return (
-    <div className="panel rise mb-6 p-5">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Spinner className={stuck ? "hidden" : "text-ochre"} />
-          <span className="text-h3 font-semibold">Training version {model.version}</span>
-        </div>
-        <span className="num text-h3 font-semibold text-ochre">{Math.round((model.progress || 0) * 100)}%</span>
-      </div>
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-well">
-        <div
-          className="h-full rounded-full bg-ochre transition-[width] duration-700 ease-out"
-          style={{ width: `${Math.max(2, (model.progress || 0) * 100)}%` }}
-        />
-      </div>
-      <div className="mt-2 flex items-center justify-between gap-4">
-        <p className={`text-meta ${stuck ? "text-rust" : "text-ink-3"}`}>
-          {stuck ? (
-            <>
-              The ML service didn't answer. On the laptop, run <code className="rounded bg-well px-1 py-0.5 text-ink">python -m app.cli run-job {model.id}</code>, or delete this run and try again.
-            </>
-          ) : (
-            model.message || "Starting…"
-          )}
-        </p>
-        {stuck && (
-          <Button size="sm" variant="danger" icon={Trash2} onClick={() => onDelete(model)}>
-            Delete run
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function LiveCard({ live }) {
-  return (
-    <div className="panel flex items-center gap-5 p-5">
-      <div className="grid size-12 shrink-0 place-items-center rounded-md bg-clay-wash">
-        <Smartphone className="size-5 text-clay" strokeWidth={1.75} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="eyebrow">On phones now</div>
-        {live ? (
-          <div className="mt-0.5 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            <span className="num text-h1 font-semibold">Version {live.version}</span>
-            <span className="text-body text-ink-3">
-              Letters <span className="num font-medium text-ink-2">{pct(live.val_accuracy)}</span>
-              {live.motion_labels && (
-                <>
-                  {" · "}Motion <span className="num font-medium text-ink-2">{pct(live.motion_val_accuracy)}</span>
-                </>
-              )}
-              {" · "}deployed {formatWhen(live.deployed_at)}
-            </span>
-          </div>
-        ) : (
-          <div className="mt-0.5 text-h2 font-medium text-ink-3">Nothing deployed yet</div>
-        )}
-      </div>
-      {live && (
-        <div className="hidden max-w-[40%] md:block">
-          <Labels labels={live.labels} motion={live.motion_labels} />
-        </div>
-      )}
-    </div>
-  );
-}
+const letters = (m) => [...(m.labels || []), ...(m.motion_labels || []).filter((l) => l !== "_none")].join(" ") || "—";
 
 export default function Models() {
-  const toast = useToast();
-  const [list, setList] = useState(null);
-  const [readySigns, setReadySigns] = useState(null);
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(null); // id of the row whose action is running, or "train"
+  const m = useModels();
+  const [actionError, setActionError] = useState("");
+  const act = async (fn) => setActionError(await fn());
 
-  const load = useCallback(async () => {
-    try {
-      const [rows, signs] = await Promise.all([modelsApi.list(), signsApi.list()]);
-      setList(rows);
-      setReadySigns(signs.filter((s) => s.kind === "static" && s.sample_count >= MIN_STATIC_SAMPLES).length);
-      setError("");
-    } catch (err) {
-      setError(errorMessage(err));
-    }
-  }, []);
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const training = list?.find((m) => m.status === "training");
-  // Poll while a run is going; progress arrives from the ML service via the backend.
-  useEffect(() => {
-    if (!training) return;
-    const t = setInterval(load, 2000);
-    return () => clearInterval(t);
-  }, [training?.id, load]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Tell the admin when a run they were watching finishes.
-  const [watching, setWatching] = useState(null);
-  useEffect(() => {
-    if (training) return setWatching(training.id);
-    if (!watching || !list) return;
-    const done = list.find((m) => m.id === watching);
-    if (done?.status === "trained") toast(`Version ${done.version} is ready to deploy`);
-    if (done?.status === "failed") toast(`Version ${done.version} failed: ${done.error}`, "error");
-    setWatching(null);
-  }, [list]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const act = async (key, fn, success) => {
-    setBusy(key);
-    try {
-      await fn();
-      if (success) toast(success);
-      await load();
-    } catch (err) {
-      toast(errorMessage(err), "error");
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const live = list?.find((m) => m.status === "deployed") || null;
-  const remove = (m) =>
-    window.confirm(`Delete version ${m.version}? Its files are removed for good.`) &&
-    act(m.id, () => modelsApi.remove(m.id), `Deleted version ${m.version}`);
+  const remove = (model) =>
+    window.confirm(`Delete version ${model.version}?`) && act(() => m.remove(model.id));
 
   return (
     <>
-      <header className="mb-6 flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-h1 font-semibold">Models</h1>
-          {readySigns !== null && (
-            <p className="mt-1 text-body text-ink-3">
-              <span className="num font-medium text-ink-2">{readySigns}</span> letter{readySigns === 1 ? "" : "s"} ready to
-              train{readySigns < 2 && <> · need at least 2</>}
-            </p>
-          )}
-        </div>
-        <Button
-          variant="primary"
-          icon={Play}
-          loading={busy === "train"}
-          disabled={Boolean(training) || readySigns < 2}
-          onClick={() => act("train", modelsApi.train, "Training started")}
-        >
-          Train new version
-        </Button>
-      </header>
+      <PageTitle
+        title="Models"
+        subtitle={`${m.readyLetters} static letters ready to train (at least 2 needed)`}
+        action={
+          <Button variant="primary" disabled={!m.canTrain || m.busy} onClick={() => act(m.train)}>
+            Train new version
+          </Button>
+        }
+      />
+      <ErrorText>{m.error || actionError}</ErrorText>
+      {!m.models && !m.error && <Loading />}
 
-      {error && <p className="mb-4 rounded-sm bg-rust-wash px-3 py-2 text-body text-rust">{error}</p>}
-      {!list && !error && <Spinner className="mx-auto mt-16" />}
+      {m.training && (
+        <Card title={`Training version ${m.training.version}`} className="mb-6">
+          <ProgressBar value={m.training.progress || 0} color="yellow" />
+          <p className="mt-2 text-sm text-gray-600">
+            {Math.round((m.training.progress || 0) * 100)}% · {m.training.message || "Starting…"}
+          </p>
+          <div className="mt-3 flex items-center gap-3 text-sm">
+            {m.trainingStuck && (
+              <span className="text-red-700">
+                The ML service didn't answer. On the laptop run <code>python -m app.cli run-job {m.training.id}</code>, or delete this run.
+              </span>
+            )}
+            <Button variant="danger" className="ml-auto" onClick={() => remove(m.training)}>
+              Delete run
+            </Button>
+          </div>
+        </Card>
+      )}
 
-      {list && (
+      {m.models && (
         <>
-          {training && <TrainingCard model={training} onDelete={remove} />}
-          <section className="mb-8">
-            <LiveCard live={live} />
-          </section>
+          <Card title="On phones now" className="mb-6">
+            {m.live ? (
+              <p>
+                <span className="text-xl font-bold">Version {m.live.version}</span>
+                <span className="ml-3 text-sm text-gray-600">
+                  Letters: {letters(m.live)} · accuracy {percent(m.live.val_accuracy)} · deployed {formatDate(m.live.deployed_at)}
+                </span>
+              </p>
+            ) : (
+              <p className="text-gray-500">Nothing deployed yet.</p>
+            )}
+          </Card>
 
-          <section>
-            <h2 className="eyebrow mb-3">All versions</h2>
-            <div className="panel overflow-hidden">
-              {list.length === 0 ? (
-                <Empty icon={Boxes} title="No versions yet">
-                  Once at least two letters have {MIN_STATIC_SAMPLES} samples each, train the first version here.
-                </Empty>
-              ) : (
-                <ul className="divide-y divide-rule">
-                  {list.map((m) => {
-                    const [tone, text] = STATUS[m.status];
-                    const older = live && m.version < live.version;
+          <Card title="All versions">
+            {m.models.length === 0 ? (
+              <p className="text-sm text-gray-500">No versions yet. Train one once 2 letters are ready.</p>
+            ) : (
+              <table className="w-full text-left text-sm">
+                <thead className="text-gray-500">
+                  <tr>
+                    <th className="py-1">Version</th>
+                    <th>Status</th>
+                    <th>Letters</th>
+                    <th>Accuracy</th>
+                    <th>Trained</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {m.models.map((model) => {
+                    const isOlder = m.live && model.version < m.live.version;
                     return (
-                      <li key={m.id} className={`flex items-center gap-4 px-4 py-3 ${m.status === "deployed" ? "bg-clay-wash/40" : ""}`}>
-                        <span className="num w-10 shrink-0 text-h3 font-semibold text-ink">v{m.version}</span>
-                        <Badge tone={tone} className="w-24 justify-center">
-                          {text}
-                        </Badge>
-                        <div className="min-w-0 flex-1">
-                          {m.status === "failed" ? (
-                            <span className="flex items-center gap-1.5 text-meta text-rust" title={m.error}>
-                              <CircleAlert className="size-3.5 shrink-0" />
-                              <span className="truncate">{m.error}</span>
-                            </span>
-                          ) : (
-                            <Labels labels={m.labels} motion={m.motion_labels} />
-                          )}
-                        </div>
-                        <span className="num w-28 shrink-0 text-right text-meta text-ink-3" title="Validation accuracy (letters · motion)">
-                          {pct(m.val_accuracy)}
-                          {m.motion_labels && <span className="text-ink-4"> · {pct(m.motion_val_accuracy)}</span>}
-                        </span>
-                        <span className="w-28 shrink-0 text-right text-meta text-ink-4">{formatWhen(m.trained_at || m.created_at)}</span>
-                        <span className="flex w-40 shrink-0 justify-end gap-1">
-                          {m.status === "trained" && (
-                            <Button
-                              size="sm"
-                              variant={older ? "secondary" : "primary"}
-                              icon={older ? RotateCcw : Rocket}
-                              loading={busy === m.id}
-                              onClick={() =>
-                                act(m.id, () => modelsApi.deploy(m.id), `Version ${m.version} is now on phones`)
-                              }
-                            >
-                              {older ? "Roll back" : "Deploy"}
+                      <tr key={model.id} className="border-t border-gray-100">
+                        <td className="py-2 font-semibold">v{model.version}</td>
+                        <td>
+                          <Badge color={STATUS[model.status].color}>{STATUS[model.status].text}</Badge>
+                        </td>
+                        <td>{model.status === "failed" ? <span className="text-red-700">{model.error}</span> : letters(model)}</td>
+                        <td>
+                          {percent(model.val_accuracy)}
+                          {model.motion_labels && ` / ${percent(model.motion_val_accuracy)}`}
+                        </td>
+                        <td>{formatDate(model.trained_at)}</td>
+                        <td className="space-x-2 text-right">
+                          {model.status === "trained" && (
+                            <Button variant="primary" disabled={m.busy} onClick={() => act(() => m.deploy(model.id))}>
+                              {isOlder ? "Roll back" : "Deploy"}
                             </Button>
                           )}
-                          {m.status !== "deployed" && m.status !== "training" && (
-                            <button
-                              onClick={() => remove(m)}
-                              className="rounded-sm p-2 text-ink-4 transition-colors hover:bg-rust-wash hover:text-rust"
-                              aria-label={`Delete version ${m.version}`}
-                            >
-                              <Trash2 className="size-4" />
-                            </button>
+                          {(model.status === "trained" || model.status === "failed") && (
+                            <Button variant="danger" disabled={m.busy} onClick={() => remove(model)}>
+                              Delete
+                            </Button>
                           )}
-                        </span>
-                      </li>
+                        </td>
+                      </tr>
                     );
                   })}
-                </ul>
-              )}
-            </div>
-          </section>
+                </tbody>
+              </table>
+            )}
+          </Card>
         </>
       )}
     </>

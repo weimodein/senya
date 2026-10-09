@@ -1,3 +1,4 @@
+// Every backend call the panel makes (docs/architecture.md §5.2).
 import api from "./client.js";
 
 const data = (p) => p.then((r) => r.data);
@@ -13,7 +14,7 @@ export const signs = {
   update: (id, body) => data(api.patch(`/api/signs/${id}`, body)),
   remove: (id) => data(api.delete(`/api/signs/${id}`)),
   uploads: (id) => data(api.get(`/api/signs/${id}/uploads`)),
-  samples: (id, limit = 60) => data(api.get(`/api/signs/${id}/samples`, { params: { limit } })),
+  samples: (id, limit = 48) => data(api.get(`/api/signs/${id}/samples`, { params: { limit } })),
   /** One file per request: the backend sends it to the ML service and waits for the landmarks. */
   upload: (id, file, onProgress) => {
     const form = new FormData();
@@ -28,21 +29,13 @@ export const signs = {
   removeUpload: (uploadId) => data(api.delete(`/api/uploads/${uploadId}`)),
 };
 
-/** Fired after anything that can change which version is live, so the sidebar's "On phones" stays current. */
-export const MODELS_CHANGED = "senya:models-changed";
-const changed = (p) => p.then((r) => (window.dispatchEvent(new Event(MODELS_CHANGED)), r));
-
 export const models = {
   list: () => data(api.get("/api/models")),
-  get: (id) => data(api.get(`/api/models/${id}`)),
-  train: () => changed(data(api.post("/api/models/train"))),
-  deploy: (id) => changed(data(api.post(`/api/models/${id}/deploy`))),
-  remove: (id) => changed(data(api.delete(`/api/models/${id}`))),
+  train: () => data(api.post("/api/models/train")),
+  deploy: (id) => data(api.post(`/api/models/${id}/deploy`)),
+  remove: (id) => data(api.delete(`/api/models/${id}`)),
 };
 
-// Training thresholds (spec §4.3): shown as readiness bars on the alphabet chart.
+// How much data a sign needs before it can be trained (spec §4.3).
 export const MIN_STATIC_SAMPLES = 30;
-export const MIN_MOTION_SEQUENCES = 20;
-export const MIN_NONE_SEQUENCES = 40;
-export const targetFor = (sign) =>
-  sign.kind === "static" ? MIN_STATIC_SAMPLES : sign.label === "_none" ? MIN_NONE_SEQUENCES : MIN_MOTION_SEQUENCES;
+export const targetFor = (sign) => (sign.kind === "static" ? 30 : sign.label === "_none" ? 40 : 20);
