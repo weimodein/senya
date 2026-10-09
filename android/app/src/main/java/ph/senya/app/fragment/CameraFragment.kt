@@ -88,6 +88,8 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
     private var motionShownUntilMs = 0L
     private var speaker: Speaker? = null
     private lateinit var repository: ModelRepository
+    private val trail = ArrayDeque<Pair<Float, Float>>()
+    private var lastMovingMs = 0L
 
     override fun onResume() {
         super.onResume()
@@ -148,6 +150,7 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
         showModelLabel(getString(R.string.no_model))
         repository = ModelRepository(requireContext())
         binding.settingsButton.setOnClickListener { showSettings() }
+        binding.flipCameraButton.setOnClickListener { flipCamera() }
         modelExecutor.execute {
             loadCurrentModel()
             checkForUpdate(manual = false)
@@ -214,6 +217,14 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
             binding.overlay.setResults(
                 result, resultBundle.inputImageHeight, resultBundle.inputImageWidth, RunningMode.LIVE_STREAM
             )
+            if (out.moving && landmarks != null) {
+                trail.addLast(landmarks[8 * 3] to landmarks[8 * 3 + 1]) // index fingertip
+                while (trail.size > 60) trail.removeFirst()
+                lastMovingMs = result.timestampMs()
+            } else if (!out.moving && result.timestampMs() - lastMovingMs > 700) {
+                trail.clear()
+            }
+            binding.overlay.setTrail(trail.toList())
             binding.overlay.invalidate()
             binding.handHint.visibility = if (landmarks == null) View.VISIBLE else View.GONE
             val now = result.timestampMs()
@@ -257,6 +268,20 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
             is ModelUpdater.Result.NoModelPublished -> if (manual) toast("The server has no published model yet")
             is ModelUpdater.Result.Failed -> toast("Update failed: ${result.message}. Keeping the current model.")
         }
+    }
+
+    /** Front camera for signing to yourself, back camera for pointing the phone at a signer. */
+    private fun flipCamera() {
+        val next = if (cameraFacing == CameraSelector.LENS_FACING_FRONT) CameraSelector.LENS_FACING_BACK
+                   else CameraSelector.LENS_FACING_FRONT
+        val provider = cameraProvider ?: return
+        if (!provider.hasCamera(CameraSelector.Builder().requireLensFacing(next).build())) {
+            toast("This phone has only one camera")
+            return
+        }
+        cameraFacing = next
+        trail.clear()
+        bindCameraUseCases()
     }
 
     private fun showSettings() {

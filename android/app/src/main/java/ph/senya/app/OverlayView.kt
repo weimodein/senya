@@ -35,6 +35,16 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
     private var linePaint = Paint()
     private var pointPaint = Paint()
 
+    /** Index fingertip positions (normalized image coords) while a movement is being recorded. */
+    private var trail: List<Pair<Float, Float>> = emptyList()
+    private val trailPaint = Paint().apply {
+        color = Color.CYAN
+        strokeWidth = 10f
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        isAntiAlias = true
+    }
+
     private var scaleFactor: Float = 1f
     private var imageWidth: Int = 1
     private var imageHeight: Int = 1
@@ -49,6 +59,10 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
         pointPaint.reset()
         invalidate()
         initPaints()
+    }
+
+    fun setTrail(points: List<Pair<Float, Float>>) {
+        trail = points
     }
 
     private fun initPaints() {
@@ -88,6 +102,15 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
                     )
                 }
             }
+        }
+        for (i in 1 until trail.size) {
+            val (x0, y0) = trail[i - 1]
+            val (x1, y1) = trail[i]
+            canvas.drawLine(
+                x0 * imageWidth * scaleFactor, y0 * imageHeight * scaleFactor,
+                x1 * imageWidth * scaleFactor, y1 * imageHeight * scaleFactor,
+                trailPaint
+            )
         }
     }
 

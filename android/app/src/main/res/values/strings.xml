@@ -65,4 +65,8 @@
     <string name="save">Save</string>
     <string name="check_for_update">Check for update</string>
     <string name="cancel">Cancel</string>
+    <string name="camera_needed_title">Senya needs the camera</string>
+    <string name="camera_needed_body">Senya reads your fingerspelling from the camera. Video is processed on this phone and never leaves it.</string>
+    <string name="allow_camera">Allow camera</string>
+    <string name="flip_camera">Switch camera</string>
 </resources>

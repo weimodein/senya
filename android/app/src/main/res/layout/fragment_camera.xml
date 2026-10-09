@@ -63,6 +63,14 @@
                 android:textSize="13sp" />
 
             <ImageButton
+                android:id="@+id/flip_camera_button"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/flip_camera"
+                android:src="@drawable/ic_baseline_photo_camera_24" />
+
+            <ImageButton
                 android:id="@+id/settings_button"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
