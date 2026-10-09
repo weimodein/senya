@@ -66,6 +66,9 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
 
     companion object {
         private const val TAG = "Senya"
+
+        /** The automatic update check runs once per app start, not every time this screen's view is re-created. */
+        private var autoUpdateChecked = false
     }
 
     private var _binding: FragmentCameraBinding? = null
@@ -156,9 +159,11 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
         repository = ModelRepository(requireContext())
         binding.settingsButton.setOnClickListener { showSettings() }
         binding.flipCameraButton.setOnClickListener { flipCamera() }
+        val autoCheck = !autoUpdateChecked
+        autoUpdateChecked = true
         modelExecutor.execute {
             loadCurrentModel()
-            checkForUpdate(manual = false)
+            if (autoCheck) checkForUpdate()
         }
         speaker = Speaker(requireContext(), onStatus = { message -> toast(message) })
         binding.speakButton.isEnabled = true
@@ -279,7 +284,7 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
     }
 
     /** Runs on [modelExecutor]; on any failure the current model stays (spec §5.2). */
-    private fun checkForUpdate(manual: Boolean) {
+    private fun checkForUpdate() {
         val result = try {
             repository.checkForUpdate()
         } catch (e: Exception) {
@@ -296,9 +301,8 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
             is ModelUpdater.Result.UpToDate -> {
                 // Onboarding's check may have installed a newer version after this screen loaded the old one
                 if (bundle?.version != repository.installedVersion) loadCurrentModel()
-                if (manual) toast("Model is up to date")
             }
-            is ModelUpdater.Result.NoModelPublished -> if (manual) toast("The server has no published model yet")
+            is ModelUpdater.Result.NoModelPublished -> {}
             is ModelUpdater.Result.Cancelled -> {}
             is ModelUpdater.Result.Failed -> toast("Update failed: ${result.message}. Keeping the current model.")
         }
@@ -335,7 +339,7 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
             .setPositiveButton(R.string.save) { _, _ -> save() }
             .setNeutralButton(R.string.check_for_update) { _, _ ->
                 save()
-                modelExecutor.execute { checkForUpdate(manual = true) }
+                Navigation.findNavController(requireActivity(), R.id.fragment_container).navigate(R.id.model_update_fragment)
             }
             .setNegativeButton(R.string.cancel, null)
             .show()

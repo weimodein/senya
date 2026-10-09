@@ -62,4 +62,9 @@
             app:popUpToInclusive="true" />
     </fragment>
 
+    <fragment
+        android:id="@+id/model_update_fragment"
+        android:name="ph.senya.app.fragment.ModelUpdateFragment"
+        android:label="ModelUpdateFragment" />
+
 </navigation>
