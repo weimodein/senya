@@ -222,14 +222,16 @@ Render (backend + admin panel), Supabase (database) and an ngrok static domain f
 ---
 
 ## Dataset
-The team recorded its own FSL fingerspelling clips: 4 signers, about 10 single-take clips per signer per letter, on a phone. Only hand landmarks (21 points per frame) are extracted and stored; videos and faces are never kept. The deployed model was trained on a subset of these clips.
+A team member recorded their own FSL fingerspelling clips on a phone. Every clip is a single take: raise the hand, sign the letter, lower it. No outside dataset was used. Only hand landmarks (21 points per frame) are extracted and stored; videos and faces are never kept.
+
+**Limitation:** the model has learned one person's hand, so it may recognise other signers less reliably. Recording more signers is the main next step for accuracy.
 
 ---
 
 ## Disclosures
 - **Models used:**
   - MediaPipe Hand Landmarker (`hand_landmarker.task`, Google, pretrained).
-  - Senya's own static classifier (MLP) and motion classifier (1D CNN), trained during the sprint on data the team recorded.
+  - Senya's own static classifier (MLP) and motion classifier (1D CNN), trained during the sprint on clips a team member recorded of themselves.
   - Android's built-in offline text-to-speech voices.
 - **Technologies and frameworks:** Kotlin, CameraX, MediaPipe Tasks, TensorFlow Lite, Node.js, Express.js, Sequelize, React, Vite, Tailwind CSS, PostgreSQL, Python, FastAPI, OpenCV, TensorFlow/Keras.
 - **APIs and cloud services:**

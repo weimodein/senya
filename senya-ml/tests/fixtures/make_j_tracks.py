@@ -1,4 +1,4 @@
-"""Regenerates j_tracks.json: the hand tracks (never the videos) of 4 real FSL "J" clips, one per signer.
+"""Regenerates j_tracks.json: the hand tracks (never the videos) of 4 real FSL "J" clips, one from each recording set.
 
 Usage, from senya-ml/:
     .venv/Scripts/python.exe tests/fixtures/make_j_tracks.py "C:/Users/Dell/Desktop/trysigla/sigla/datasets/LETTERS(A-L)/J"
