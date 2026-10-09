@@ -29,37 +29,12 @@
             app:destination="@id/camera_fragment"
             app:popUpTo="@id/onboarding_fragment"
             app:popUpToInclusive="true" />
-
-        <action
-            android:id="@+id/action_onboarding_to_permissions"
-            app:destination="@id/permissions_fragment"
-            app:popUpTo="@id/onboarding_fragment"
-            app:popUpToInclusive="true" />
-    </fragment>
-
-    <fragment
-        android:id="@+id/permissions_fragment"
-        android:name="ph.senya.app.fragment.PermissionsFragment"
-        android:label="PermissionsFragment">
-
-        <action
-            android:id="@+id/action_permissions_to_camera"
-            app:destination="@id/camera_fragment"
-            app:popUpTo="@id/permissions_fragment"
-            app:popUpToInclusive="true" />
-
     </fragment>
 
     <fragment
         android:id="@+id/camera_fragment"
         android:name="ph.senya.app.fragment.CameraFragment"
         android:label="CameraFragment">
-
-        <action
-            android:id="@+id/action_camera_to_permissions"
-            app:destination="@id/permissions_fragment"
-            app:popUpTo="@id/camera_fragment"
-            app:popUpToInclusive="true" />
 
         <action
             android:id="@+id/action_camera_to_settings"

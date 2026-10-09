@@ -58,9 +58,7 @@ class OnboardingFragment : Fragment() {
             view.visibility = View.INVISIBLE
             view.post {
                 if (!isAdded) return@post
-                val destination = if (PermissionsFragment.hasPermissions(requireContext()))
-                    R.id.action_onboarding_to_camera else R.id.action_onboarding_to_permissions
-                findNavController().navigate(destination)
+                findNavController().navigate(R.id.action_onboarding_to_camera)
             }
             return
         }
@@ -86,7 +84,7 @@ class OnboardingFragment : Fragment() {
         }
         if (cameraSettingsOpened) {
             cameraSettingsOpened = false
-            if (PermissionsFragment.hasPermissions(requireContext())) {
+            if (CameraPermission.granted(requireContext())) {
                 if (step == 1) showStep(2) else finishOnboarding()
             } else {
                 showCameraError()
@@ -111,9 +109,9 @@ class OnboardingFragment : Fragment() {
     private fun primaryAction() {
         when (step) {
             0 -> showStep(1)
-            1 -> if (PermissionsFragment.hasPermissions(requireContext())) showStep(2) else requestCamera()
+            1 -> if (CameraPermission.granted(requireContext())) showStep(2) else requestCamera()
             2 -> showStep(3)
-            3 -> if (PermissionsFragment.hasPermissions(requireContext())) finishOnboarding() else requestCamera()
+            3 -> if (CameraPermission.granted(requireContext())) finishOnboarding() else requestCamera()
         }
     }
 
@@ -125,11 +123,11 @@ class OnboardingFragment : Fragment() {
             R.string.app_name, R.string.onboarding_camera, R.string.onboarding_voice, R.string.onboarding_ready,
         )[next]).let { if (next == 0) it.uppercase() else it }
         binding.onboardingBack.visibility = if (next == 0) View.GONE else View.VISIBLE
-        binding.onboardingSecondary.visibility = if (next == 1 && !PermissionsFragment.hasPermissions(requireContext()))
+        binding.onboardingSecondary.visibility = if (next == 1 && !CameraPermission.granted(requireContext()))
             View.VISIBLE else View.GONE
         binding.onboardingPrimary.setText(when (next) {
             0 -> R.string.onboarding_get_started
-            1 -> if (PermissionsFragment.hasPermissions(requireContext())) R.string.onboarding_continue else R.string.allow_camera
+            1 -> if (CameraPermission.granted(requireContext())) R.string.onboarding_continue else R.string.allow_camera
             2 -> R.string.onboarding_continue
             else -> R.string.onboarding_start_signing
         })

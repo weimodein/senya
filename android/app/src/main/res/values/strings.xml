@@ -54,7 +54,6 @@
     <string name="hand_hint">Show your hand to the camera</string>
     <string name="transcript_placeholder">Fingerspell to start…</string>
     <string name="speak">Speak</string>
-    <string name="backspace">⌫</string>
     <string name="backspace_description">Backspace</string>
     <string name="clear">Clear</string>
     <string name="no_model">No model loaded</string>
@@ -63,8 +62,6 @@
     <string name="speak_on_space">Speak each word automatically</string>
     <string name="check_for_update">Check for update</string>
     <string name="cancel">Cancel</string>
-    <string name="camera_needed_title">Senya needs the camera</string>
-    <string name="camera_needed_body">Senya reads your fingerspelling from the camera. Video is processed on this phone and never leaves it.</string>
     <string name="allow_camera">Allow camera</string>
     <string name="flip_camera">Switch camera</string>
     <string name="onboarding_back">Previous step</string>
@@ -180,4 +177,17 @@
     <string name="settings_save_changes">Save changes</string>
     <string name="settings_saved">Saved</string>
     <string name="settings_server_reset">Using the default server</string>
+    <string name="app_wordmark">SENYA</string>
+    <string name="transcript_label">Transcript</string>
+    <string name="guess_hold">Hold steady</string>
+    <string name="guess_not_added">Not added</string>
+    <string name="guess_recording">Recording movement…</string>
+    <string name="guess_added">Added</string>
+    <string name="status_hold_steady">Hold the sign steady</string>
+    <string name="status_not_sure">Not sure, try again</string>
+    <string name="status_finish_movement">Finish the movement</string>
+    <string name="status_added">Added %s</string>
+    <string name="camera_denied_title">Camera permission denied</string>
+    <string name="camera_denied_body">Allow camera access to start signing.</string>
+    <string name="grant_permission">Grant permission</string>
 </resources>
