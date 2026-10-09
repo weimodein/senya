@@ -1,7 +1,6 @@
 package ph.senya.app.fragment
 
 import android.Manifest
-import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.GradientDrawable
@@ -11,9 +10,7 @@ import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import ph.senya.app.R
@@ -22,6 +19,7 @@ import ph.senya.app.data.ModelUpdater
 import ph.senya.app.databinding.FragmentOnboardingBinding
 import ph.senya.app.ml.ModelBundle
 import ph.senya.app.speech.Speaker
+import ph.senya.app.speech.VoiceDialog
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -203,37 +201,15 @@ class OnboardingFragment : Fragment() {
     }
 
     private fun chooseVoice() {
-        val choices = speaker?.availableVoices().orEmpty()
-        if (choices.isEmpty()) {
-            openVoiceSettings()
-            return
-        }
-        AlertDialog.Builder(requireContext())
-            .setTitle(R.string.onboarding_choose_voice)
-            .setSingleChoiceItems(choices.map { it.label }.toTypedArray(),
-                choices.indexOfFirst { it.name == speaker?.selectedVoiceName }) { dialog, which ->
-                if (speaker?.selectVoice(choices[which].name) != true) {
-                    Toast.makeText(requireContext(), R.string.onboarding_voice_select_failed, Toast.LENGTH_SHORT).show()
-                }
-                updateVoiceStatus()
-                dialog.dismiss()
-            }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
+        val current = speaker ?: return
+        VoiceDialog.show(requireContext(), current, ::openVoiceSettings, ::updateVoiceStatus)
     }
 
     private fun openVoiceSettings() {
-        voiceSettingsOpened = true
-        try {
-            startActivity(Intent("com.android.settings.TTS_SETTINGS"))
-        } catch (_: ActivityNotFoundException) {
-            try {
-                startActivity(Intent(Settings.ACTION_SETTINGS))
-            } catch (_: ActivityNotFoundException) {
-                voiceSettingsOpened = false
-                voiceError = getString(R.string.onboarding_voice_settings_unavailable)
-                updateVoiceStatus()
-            }
+        voiceSettingsOpened = VoiceDialog.openTtsSettings(requireContext())
+        if (!voiceSettingsOpened) {
+            voiceError = getString(R.string.onboarding_voice_settings_unavailable)
+            updateVoiceStatus()
         }
     }
 

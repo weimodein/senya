@@ -24,7 +24,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.camera.core.AspectRatio
 import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionSelector
@@ -39,7 +38,6 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.navigation.Navigation
 import com.google.mediapipe.tasks.vision.core.RunningMode
-import ph.senya.app.BuildConfig
 import ph.senya.app.HandLandmarkerHelper
 import ph.senya.app.R
 import ph.senya.app.core.EngineModels
@@ -50,7 +48,6 @@ import ph.senya.app.core.Transcript
 import ph.senya.app.core.TranslatorEngine
 import ph.senya.app.data.ModelRepository
 import ph.senya.app.data.ModelUpdater
-import ph.senya.app.databinding.DialogSettingsBinding
 import ph.senya.app.databinding.FragmentCameraBinding
 import ph.senya.app.ml.AssetModelSource
 import ph.senya.app.ml.Landmarks
@@ -157,7 +154,9 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
         renderTranscript()
         showModelLabel(getString(R.string.no_model))
         repository = ModelRepository(requireContext())
-        binding.settingsButton.setOnClickListener { showSettings() }
+        binding.settingsButton.setOnClickListener {
+            Navigation.findNavController(requireActivity(), R.id.fragment_container).navigate(R.id.action_camera_to_settings)
+        }
         binding.flipCameraButton.setOnClickListener { flipCamera() }
         val autoCheck = !autoUpdateChecked
         autoUpdateChecked = true
@@ -320,29 +319,6 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
         cameraFacing = next
         trail.clear()
         bindCameraUseCases()
-    }
-
-    private fun showSettings() {
-        val dialogBinding = DialogSettingsBinding.inflate(layoutInflater)
-        dialogBinding.speakOnSpace.isChecked = repository.speakOnSpace
-        // Release builds always use the deployed server; only debug builds can point elsewhere
-        dialogBinding.serverOverrideGroup.visibility = if (BuildConfig.DEBUG) View.VISIBLE else View.GONE
-        dialogBinding.serverOverride.setText(repository.serverOverride)
-        dialogBinding.serverOverride.hint = BuildConfig.SERVER_URL
-        fun save() {
-            if (BuildConfig.DEBUG) repository.serverOverride = dialogBinding.serverOverride.text.toString()
-            repository.speakOnSpace = dialogBinding.speakOnSpace.isChecked
-        }
-        AlertDialog.Builder(requireContext())
-            .setTitle(R.string.settings)
-            .setView(dialogBinding.root)
-            .setPositiveButton(R.string.save) { _, _ -> save() }
-            .setNeutralButton(R.string.check_for_update) { _, _ ->
-                save()
-                Navigation.findNavController(requireActivity(), R.id.fragment_container).navigate(R.id.model_update_fragment)
-            }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
     }
 
     /** Swaps the models the engine uses. Runs on [modelExecutor]. */

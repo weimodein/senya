@@ -38,4 +38,12 @@ class VoicePickerTest {
     fun nullWhenNothingUsable() {
         assertNull(VoicePicker.pick(listOf(v("ja", "ja", "JP"), v("en-net", "en", "US", net = true))))
     }
+
+    @Test
+    fun labelsNumberVoicesPerLanguage() {
+        assertEquals(
+            listOf("Filipino · Voice 1", "English · Voice 1", "Filipino · Voice 2"),
+            VoicePicker.labels(listOf("Filipino", "English", "Filipino")),
+        )
+    }
 }

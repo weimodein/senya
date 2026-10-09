@@ -60,11 +60,25 @@
             app:destination="@id/permissions_fragment"
             app:popUpTo="@id/camera_fragment"
             app:popUpToInclusive="true" />
+
+        <action
+            android:id="@+id/action_camera_to_settings"
+            app:destination="@id/settings_fragment" />
     </fragment>
 
     <fragment
         android:id="@+id/model_update_fragment"
         android:name="ph.senya.app.fragment.ModelUpdateFragment"
         android:label="ModelUpdateFragment" />
+
+    <fragment
+        android:id="@+id/settings_fragment"
+        android:name="ph.senya.app.fragment.SettingsFragment"
+        android:label="SettingsFragment">
+
+        <action
+            android:id="@+id/action_settings_to_model_update"
+            app:destination="@id/model_update_fragment" />
+    </fragment>
 
 </navigation>

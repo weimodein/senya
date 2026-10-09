@@ -60,11 +60,7 @@
     <string name="no_model">No model loaded</string>
     <string name="no_guess">—</string>
     <string name="settings">Settings</string>
-    <string name="updates_info">New sign models download from the Senya server when you are online. Translation always works offline.</string>
-    <string name="server_override">Server override (debug builds only)</string>
-    <string name="server_override_help">Leave empty to use the deployed server.</string>
     <string name="speak_on_space">Speak each word automatically</string>
-    <string name="save">Save</string>
     <string name="check_for_update">Check for update</string>
     <string name="cancel">Cancel</string>
     <string name="camera_needed_title">Senya needs the camera</string>
@@ -167,4 +163,21 @@
     <string name="update_continue_static_only">Continue static-only</string>
     <string name="update_check_again">Check again</string>
     <string name="update_back_to_settings">Back to settings</string>
+    <string name="settings_speech">Speech</string>
+    <string name="settings_voice">Voice</string>
+    <string name="settings_voice_missing">No offline voice · tap to install</string>
+    <string name="settings_test_voice">Test voice</string>
+    <string name="settings_test_phrase_display">“MAGANDA”</string>
+    <string name="settings_models">Models</string>
+    <string name="settings_installed_version">Installed version</string>
+    <string name="settings_not_checked">Not checked yet</string>
+    <string name="settings_last_checked">Last checked %s</string>
+    <string name="settings_updates_note">Updates need internet. Signing stays on your phone.</string>
+    <string name="settings_advanced">Advanced</string>
+    <string name="settings_server_override_short">Server override</string>
+    <string name="settings_server_url">Server URL override</string>
+    <string name="settings_reset_default">Reset to default</string>
+    <string name="settings_save_changes">Save changes</string>
+    <string name="settings_saved">Saved</string>
+    <string name="settings_server_reset">Using the default server</string>
 </resources>
