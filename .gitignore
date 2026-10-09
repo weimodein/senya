@@ -1,0 +1,6 @@
+# OS / editors (folder-specific ignores live in android/.gitignore and platform/.gitignore)
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+*.swp

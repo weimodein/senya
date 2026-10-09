@@ -1,0 +1,11 @@
+# Normalize line endings so Windows and macOS/Linux teammates don't fight over them
+* text=auto
+gradlew text eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf
+*.jar binary
+*.png binary
+*.jpg binary
+*.mp4 binary
+*.tflite binary
+*.task binary
