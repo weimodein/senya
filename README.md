@@ -16,7 +16,7 @@ AppBuildersPH Hackathon 2026 · Theme: Local AI
 
 ## Try it in two minutes (no setup)
 
-1. **Get the APK.** Download `senya-v1.0.apk` from this repository's **Releases** page (tag `v1.0`), or take it from [`release/`](release/) in this repo.
+1. **Get the APK.** Download [`senya-v1.0.apk`](https://github.com/weimodein/senya/releases/download/1.0.0/senya-v1.0.apk) from this repository's [Releases](https://github.com/weimodein/senya/releases/tag/1.0.0) page (release `1.0.0`), or take it from [`release/`](release/) in this repo. Its sha256 is in [`release/senya-v1.0.apk.sha256`](release/senya-v1.0.apk.sha256).
 2. **Install it** on an Android phone (Android 7.0 / API 24 or newer). Allow "Install unknown apps" for your browser or file manager when asked. The APK is signed with a debug key because it is a hackathon build, not a Play Store build.
 3. **Open Senya** and follow the four onboarding steps: welcome, camera, offline voice, ready. On the **Ready** screen, the app lists the letters its model knows.
 4. **Turn on airplane mode** and fingerspell. Translation, word suggestions and speech all keep working.
