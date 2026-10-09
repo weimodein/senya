@@ -197,7 +197,7 @@ Both people agree to this in hour 0 and copy it into `CONTRACT.md`. Changing it 
 4. **Model:** `Input(63)` → `Reshape(21,3)` → normalization layers (subtract point 0; divide by the largest distance from the wrist) → `Flatten` → `Dense(128, relu)` → `Dropout(0.3)` → `Dense(64, relu)` → `Dense(N, softmax)`. Adam optimizer, early stopping on validation loss.
 
 **Motion model** (skipped, with `motion = null`, unless at least one motion sign besides `_none` qualifies)
-1. Include motion signs with **≥ 20 sequences from ≥ 2 uploads**; `_none` needs **≥ 40**. Report the signs that were skipped.
+1. Include motion signs with **≥ 3 sequences from ≥ 3 uploads**; `_none` needs **≥ 6** (single-take clips: one movement per clip, raise/lower harvested into `_none`). Report the signs that were skipped.
 2. Resample every sequence to 32 frames (§3, item 7). Split by upload as above.
 3. **Augment:** mirror x for the whole sequence, rotation (±15°), scale (±10%), noise, **time warp** (random smooth change in speed, ±20%), and **boundary jitter** (move the start/end by up to ±100 ms before resampling, to simulate segmenter differences).
 4. **Model:** `Input(32, 63)` → `Reshape(32,21,3)` → normalization (§3, item 6) → `Reshape(32,63)` → `Conv1D(64, 5, relu)` → `Conv1D(64, 5, relu)` → `MaxPool1D(2)` → `Conv1D(128, 3, relu)` → `GlobalMaxPool1D` → `Dense(64, relu)` → `Dropout(0.3)` → `Dense(M, softmax)`. Use Conv1D, not LSTM/GRU, because it converts to TFLite reliably. Adam, early stopping.

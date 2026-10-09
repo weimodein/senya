@@ -176,7 +176,7 @@ Base URL: `http://localhost:8000` locally. For a phone, run `adb reverse tcp:800
 - `DELETE /api/signs/:id` → `204`, deleting its uploads and samples; `400` for `_none`
 
 **Uploads** (one file per request)
-- `POST /api/signs/:id/uploads`, multipart field `file` (video or image, ≤ 50 MB) → `201 {id, filename, samples_added, segments_found, no_hand_frames}`. `422` when nothing usable was found; `503` when the ML service is unreachable.
+- `POST /api/signs/:id/uploads`, multipart field `file` (video or image, ≤ 50 MB) → `201 {id, filename, samples_added, segments_found, no_hand_frames, none_added}`. `422` when nothing usable was found; `503` when the ML service is unreachable.
 - `GET /api/signs/:id/uploads` → newest first
 - `DELETE /api/uploads/:id` → `204`, deleting its samples
 - `GET /api/signs/:id/samples?limit=60` → `[{id, upload_id, thumb}]` for the review grid
@@ -184,7 +184,7 @@ Base URL: `http://localhost:8000` locally. For a phone, run `adb reverse tcp:800
 **Models**
 - `GET /api/models` → `[{id, version, status, progress, message, error, labels, motion_labels, val_accuracy, motion_val_accuracy, created_at, trained_at, deployed_at}]`, newest first
 - `GET /api/models/:id` → the same fields plus `report`
-- `POST /api/models/train` → `202 {model}`. `409` if a run is already training. `400` unless at least 2 static signs have 30+ samples each. The trainer itself skips motion signs without enough data (20+ sequences from 2+ uploads; `_none` 40+).
+- `POST /api/models/train` → `202 {model}`. `409` if a run is already training. `400` unless at least 2 static signs have 30+ samples each. The trainer itself skips motion signs without enough data (3+ sequences from 3+ uploads; `_none` 6+).
 - `POST /api/models/:id/deploy` → `200`; only for a `trained` or `deployed` row
 - `DELETE /api/models/:id` → `204`; not allowed for the deployed row
 
@@ -207,7 +207,7 @@ All three `models/:id` callbacks return `409` once the row is no longer `trainin
 ### 5.4 ML service (`X-API-Key`; called only by the backend)
 
 - `GET /health` → `{"status": "ok", "training": <model_id|null>}` (no key needed)
-- `POST /extract`, multipart: `file`, `kind` (`static` | `motion`). Landmarks are 63 raw floats (CONTRACT.md §3 item 1), never normalized.
+- `POST /extract`, multipart: `file`, `kind` (`static` | `motion`), and optionally `mode` (`single` | `multi`, default `multi`; motion only). The backend sends `single` for every motion sign except `_none`. Landmarks are 63 raw floats (CONTRACT.md §3 item 1), never normalized.
   ```json
   // static: one frame every 100 ms from the HOLD only, at most 60 per clip
   {"kind": "static", "no_hand_frames": 4,
@@ -220,6 +220,7 @@ All three `models/:id` callbacks return `409` once the row is no longer `trainin
   `422` if no hand, no hold (static) or no complete movement (motion) is found.
 
   **Static clips go rest → raise → hold → lower → rest; only the hold is kept.** Measured on real FSL letter clips, the raise and lower move at 3–17 hand sizes/s and the hold at 0–0.3. `find_hold` takes the longest run of frames slower than `HOLD_SPEED` (0.5) lasting at least `MIN_HOLD_MS` (300). If several runs qualify (a resting hand in view is still too), it takes the one where the hand is highest. It then trims `HOLD_TRIM_MS` (100) off each end. On 25 real static letters this kept a clean hold every time (5–16 samples per clip).
+  **Single-take motion clips go rest → raise → (hold) → sign once → settle → lower → rest.** `find_single_take` finds the raise and lower by the wrist's vertical speed (`RAISE_SPEED`, 0.5 hand sizes/s). The sign starts at the first fast frame after the raise that keeps moving for `min_ms`, and ends at the first still frame that stays still for `stop_hold_ms` or runs into the lower. It then gets `pad_ms` in front. The response has one `sequences` entry plus `none_sequences` (the raise and lower), which the backend stores as `_none` samples of the same upload, so deleting the clip deletes them. On 40 real J clips from 4 signers this kept one J of 750–1950 ms every time.
 - `POST /train` `{model_id}` → `202`, or `409` if a run is already going. The run downloads the dataset, trains both models, checks TFLite against Keras, makes the golden files, and calls back.
 
 ---
