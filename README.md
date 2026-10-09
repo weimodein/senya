@@ -46,8 +46,9 @@ AppBuildersPH Hackathon 2026 · Theme: Local AI
 | `docs/` | — | Design spec |
 
 ## Running it
+- Android app: build it (see `android/README.md`) or install `app-release.apk` from the GitHub release.
 - Platform: see `platform/README.md`.
-- Android app: see `android/README.md`.
+- Phone and laptop must be on the same Wi-Fi for model updates; translation itself works in airplane mode.
 
 ## License
 Apache License 2.0 — see `LICENSE` and `NOTICE`. The Android app started from the MediaPipe hand landmarker sample (also Apache 2.0); see `android/README.md`.
