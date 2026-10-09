@@ -153,7 +153,7 @@ Phone: everything after that is offline.
 
 ## 5. API reference
 
-Base URL: `http://localhost:8000` locally. For a phone, run `adb reverse tcp:8000 tcp:8000` and either put `senya.serverUrl=http://127.0.0.1:8000` in `android/local.properties` or use the debug server override in Settings. Release builds default to `https://senya.onrender.com`. Errors are always `{"message": "…"}` with a 4xx/5xx status.
+Base URL: `http://localhost:8000` locally. For a phone, run `adb reverse tcp:8000 tcp:8000` and either put `senya.serverUrl=http://127.0.0.1:8000` in `android/local.properties` or use the debug server override in Settings. Release builds default to `https://senya-k2wd.onrender.com`. Errors are always `{"message": "…"}` with a 4xx/5xx status.
 
 ### 5.1 Public (the Android app; frozen by CONTRACT.md)
 

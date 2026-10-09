@@ -33,7 +33,7 @@ Uploading clips and training need the laptop and the tunnel running. Translation
 Free web services sleep after ~15 minutes without traffic; the first request then takes about a minute. **Open the URL once before any demo.** The app keeps working from its bundled model while the server sleeps.
 
 ## 5. The app
-Release builds use `https://senya.onrender.com`. To change it, set `senya.serverUrl=<url>` in `android/local.properties` before building. Debug builds can also override it in Settings.
+Release builds use `https://senya-k2wd.onrender.com`. To change it, set `senya.serverUrl=<url>` in `android/local.properties` before building. Debug builds can also override it in Settings.
 
 ## Never commit
 `.env` files, the database password, `ML_API_KEY`, `JWT_SECRET`, `ADMIN_PASSWORD`.
