@@ -36,7 +36,7 @@ function UploadBox({ sign, onFiles }) {
 
 function Guidance({ sign }) {
   return (
-    <Card eyebrow="Recording guidance" title={sign.kind === "static" ? "Keep the frame calm" : "Make each movement clear"} className="h-full">
+    <Card eyebrow="Recording guidance" title={sign.kind === "static" ? "Keep the frame calm" : "Make each movement clear"}>
       <div className="space-y-4 text-sm leading-6 text-[#636B77]">
         <p>{sign.kind === "static" ? "Raise your hand, hold the sign still for about a second, then lower it. Only the held portion is used." : "Repeat the movement with a pause between repetitions so each segment can be identified."}</p>
         <p>Keep your head, torso, and signing hand in frame.</p>
@@ -126,9 +126,9 @@ export default function SignDetail() {
       </div>
       <ErrorText>{actionError}</ErrorText>
 
-      <div className="mt-7 grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]">
+      <div className="mt-7 grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]">
         <section>
-          <Card eyebrow="Add samples" title="Upload clips" className="h-full">
+          <Card eyebrow="Add samples" title="Upload clips">
             <UploadBox sign={sign} onFiles={s.addFiles} />
           </Card>
           <QueueList queue={s.queue} kind={sign.kind} onClear={s.clearQueue} uploading={s.uploading} />

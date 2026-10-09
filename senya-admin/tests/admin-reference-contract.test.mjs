@@ -15,12 +15,16 @@ test("admin shell and pages expose the refined reference structure", () => {
 
   assert.match(css, /#f6f7f9/i);
   assert.match(layout, /senya-logo-primary\.svg/);
+  assert.match(layout, /<header className="sticky top-0 z-50 /);
   assert.match(layout, /Server/);
   assert.match(layout, /ML service/);
   assert.match(signs, /Motion samples/);
   assert.match(signs, /View models/);
   assert.match(detail, /Choose files/);
   assert.match(detail, /Preview frames/);
+  assert.match(detail, /grid items-start gap-6 lg:grid-cols-/);
+  assert.doesNotMatch(detail, /<Card eyebrow="Add samples" title="Upload clips" className="h-full">/);
+  assert.doesNotMatch(detail, /<Card eyebrow="Recording guidance" title=.*className="h-full">/);
   assert.match(models, /Published version/);
   assert.match(models, /Available for phone downloads/);
   assert.match(ui, /role="listbox"/);
