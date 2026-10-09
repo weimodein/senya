@@ -181,6 +181,17 @@
                     app:trackThickness="3dp" />
 
                 <TextView
+                    android:id="@+id/guess_recording_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:maxWidth="112dp"
+                    android:text="@string/guess_recording"
+                    android:textColor="@color/senya_ink"
+                    android:textSize="14sp"
+                    android:visibility="gone" />
+
+                <TextView
                     android:id="@+id/guess_label"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -235,7 +246,7 @@
         android:id="@+id/status_row"
         android:layout_width="match_parent"
         android:layout_height="48dp"
-        android:background="@color/senya_surface"
+        android:background="@color/senya_background"
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingStart="20dp"
@@ -301,9 +312,10 @@
             android:maxLines="2"
             android:textColor="@color/senya_ink"
             android:textColorHint="@color/senya_muted"
+            android:fontFamily="sans-serif-black"
             android:textStyle="bold"
-            app:autoSizeMaxTextSize="48sp"
-            app:autoSizeMinTextSize="20sp"
+            app:autoSizeMaxTextSize="56sp"
+            app:autoSizeMinTextSize="22sp"
             app:autoSizeTextType="uniform" />
 
         <LinearLayout
