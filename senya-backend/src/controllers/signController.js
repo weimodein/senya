@@ -55,17 +55,27 @@ const remove = async (req, res) => {
   res.status(204).end();
 };
 
+const motionData = (it) => ({
+  duration_ms: Math.round(it.duration_ms ?? it.frames[it.frames.length - 1].t_ms - it.frames[0].t_ms),
+  frames: it.frames,
+});
+
 // POST /api/signs/:id/uploads  multipart `file` -> ML /extract -> one upload + its samples
+// Real motion signs are single takes (raise, sign once, lower): the ML service returns the one movement, plus the
+// raise and lower as none_sequences, which are stored as _none samples of the same upload.
 const addUpload = async (req, res) => {
   const sign = await findSign(req.params.id);
   if (!req.file) throw new HttpError(400, "attach the clip or image as the `file` field");
 
-  const result = await ml.extract(req.file.buffer, req.file.originalname, sign.kind);
+  const singleTake = sign.kind === "motion" && sign.label !== NONE_LABEL;
+  const result = await ml.extract(req.file.buffer, req.file.originalname, sign.kind, singleTake ? "single" : undefined);
   const problem = extractionError(sign.kind, result);
   if (problem) throw new HttpError(502, `ML service returned an unusable result: ${problem}`);
 
   const isStatic = sign.kind === "static";
   const items = isStatic ? result.samples : result.sequences;
+  const noneItems = singleTake ? result.none_sequences || [] : [];
+  const noneSign = noneItems.length ? await Sign.findOne({ where: { label: NONE_LABEL } }) : null;
   const upload = await sequelize.transaction(async (transaction) => {
     const up = await Upload.create(
       {
@@ -77,25 +87,28 @@ const addUpload = async (req, res) => {
       },
       { transaction },
     );
-    await Sample.bulkCreate(
-      items.map((it) => ({
-        sign_id: sign.id,
+    const rows = items.map((it) => ({
+      sign_id: sign.id,
+      upload_id: up.id,
+      kind: sign.kind,
+      data: isStatic ? it.landmarks : motionData(it),
+      handedness: it.handedness ?? null,
+      thumb: it.thumb ?? null,
+    }));
+    if (noneSign) {
+      rows.push(...noneItems.map((it) => ({
+        sign_id: noneSign.id,
         upload_id: up.id,
-        kind: sign.kind,
-        data: isStatic
-          ? it.landmarks
-          : {
-              duration_ms: Math.round(it.duration_ms ?? it.frames[it.frames.length - 1].t_ms - it.frames[0].t_ms),
-              frames: it.frames,
-            },
+        kind: "motion",
+        data: motionData(it),
         handedness: it.handedness ?? null,
         thumb: it.thumb ?? null,
-      })),
-      { transaction },
-    );
+      })));
+    }
+    await Sample.bulkCreate(rows, { transaction });
     return up;
   });
-  res.status(201).json(upload);
+  res.status(201).json({ ...upload.toJSON(), none_added: noneSign ? noneItems.length : 0 });
 };
 
 // GET /api/signs/:id/uploads

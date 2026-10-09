@@ -14,6 +14,19 @@ const MIN_STATIC_SIGNS = 2;
 const isLandmarks = (a) =>
   Array.isArray(a) && a.length === FLOATS && a.every((v) => typeof v === "number" && Number.isFinite(v));
 
+function sequencesError(list, name) {
+  for (const [i, q] of list.entries()) {
+    const f = q?.frames;
+    if (!Array.isArray(f) || f.length < 2) return `${name}[${i}] needs at least 2 frames`;
+    for (const fr of f) {
+      if (!Number.isFinite(fr?.t_ms)) return `${name}[${i}] has a frame without t_ms`;
+      if (fr.landmarks !== null && !isLandmarks(fr.landmarks)) return `${name}[${i}] has a bad frame`;
+    }
+    if (!f.some((fr) => fr.landmarks !== null)) return `${name}[${i}] has no frame with a hand`;
+  }
+  return null;
+}
+
 /** Checks what the ML service's /extract returned before it goes into the database. Returns an error or null. */
 function extractionError(kind, body) {
   if (!body || body.kind !== kind) return `expected a ${kind} result`;
@@ -23,16 +36,8 @@ function extractionError(kind, body) {
     return bad >= 0 ? `samples[${bad}].landmarks must be ${FLOATS} finite numbers` : null;
   }
   if (!Array.isArray(body.sequences) || !body.sequences.length) return "no sequences";
-  for (const [i, q] of body.sequences.entries()) {
-    const f = q?.frames;
-    if (!Array.isArray(f) || f.length < 2) return `sequences[${i}] needs at least 2 frames`;
-    for (const fr of f) {
-      if (!Number.isFinite(fr?.t_ms)) return `sequences[${i}] has a frame without t_ms`;
-      if (fr.landmarks !== null && !isLandmarks(fr.landmarks)) return `sequences[${i}] has a bad frame`;
-    }
-    if (!f.some((fr) => fr.landmarks !== null)) return `sequences[${i}] has no frame with a hand`;
-  }
-  return null;
+  if (body.none_sequences !== undefined && !Array.isArray(body.none_sequences)) return "none_sequences must be a list";
+  return sequencesError(body.sequences, "sequences") || sequencesError(body.none_sequences || [], "none_sequences");
 }
 
 module.exports = {
