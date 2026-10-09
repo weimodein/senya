@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import useSigns from "../hooks/useSigns.js";
-import { Badge, Button, Card, ErrorText, Input, Loading, PageTitle, ProgressBar } from "../components/ui.jsx";
+import { Badge, Button, Card, ErrorText, Input, Loading, PageTitle, Readiness, Select } from "../components/ui.jsx";
 
 function AddSignForm({ onAdd }) {
   const [label, setLabel] = useState("");
@@ -9,8 +9,8 @@ function AddSignForm({ onAdd }) {
   const [startShapes, setStartShapes] = useState("");
   const [error, setError] = useState("");
 
-  const submit = async (e) => {
-    e.preventDefault();
+  const submit = async (event) => {
+    event.preventDefault();
     const err = await onAdd({ label, kind, startShapes });
     setError(err);
     if (!err) {
@@ -20,77 +20,108 @@ function AddSignForm({ onAdd }) {
   };
 
   return (
-    <Card title="Add a sign" className="mb-6">
-      <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
-        <Input label="Label" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="A" required className="w-24" />
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-gray-700">Kind</span>
-          <select value={kind} onChange={(e) => setKind(e.target.value)} className="rounded border border-gray-300 px-2 py-1.5">
-            <option value="static">Static (held still)</option>
-            <option value="motion">Motion (moves, like J or Z)</option>
-          </select>
-        </label>
-        {kind === "motion" && (
-          <Input label="Starts from letter" value={startShapes} onChange={(e) => setStartShapes(e.target.value)} placeholder="I" className="w-36" />
-        )}
+    <Card title="Add a sign" className="mb-7">
+      <form onSubmit={submit} className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+        <Input label="Label" value={label} onChange={(event) => setLabel(event.target.value)} placeholder="A" required className="w-full sm:w-48" />
+        <Select label="Kind" value={kind} onChange={(event) => setKind(event.target.value)} className="w-full sm:w-64">
+          <option value="static">Static (held still)</option>
+          <option value="motion">Motion (J or Z)</option>
+        </Select>
+        {kind === "motion" && <Input label="Starts from letter" value={startShapes} onChange={(event) => setStartShapes(event.target.value)} placeholder="I" className="w-full sm:w-48" />}
         <Button variant="primary" type="submit">
-          Add
+          Add sign <span aria-hidden="true">→</span>
         </Button>
       </form>
-      {error && <div className="mt-3"><ErrorText>{error}</ErrorText></div>}
+      <p className="mt-3 text-xs text-[#636B77]">Static (held still) or Motion (J or Z)</p>
+      {error && <div className="mt-4"><ErrorText>{error}</ErrorText></div>}
     </Card>
   );
 }
 
-function SignCard({ sign }) {
+function SignRow({ sign }) {
+  const isBackground = sign.label === "_none";
+  const label = isBackground ? "—" : sign.label;
+  const kind = isBackground ? "Not a sign" : sign.kind === "static" ? "Static (held still)" : "Motion (J or Z)";
+  const detail = isBackground ? "Background movements for the motion model" : null;
+  const value = sign.sample_count / sign.target;
+
   return (
-    <Link to={`/signs/${sign.id}`} className="block rounded-lg border border-gray-200 bg-white p-4 hover:border-blue-400">
-      <div className="flex items-center justify-between">
-        <span className="text-3xl font-bold">{sign.label === "_none" ? "—" : sign.label}</span>
-        <Badge color={sign.ready ? "green" : "gray"}>{sign.ready ? "Ready" : "Needs data"}</Badge>
-      </div>
-      <p className="mt-1 text-xs text-gray-500">{sign.label === "_none" ? "Not a sign" : sign.kind}</p>
-      <div className="mt-3">
-        <ProgressBar value={sign.sample_count / sign.target} color={sign.ready ? "green" : "yellow"} />
-      </div>
-      <p className="mt-1 text-xs text-gray-600">
+    <tr>
+      <td>
+        <span className="inline-flex h-10 min-w-10 items-center justify-center rounded-xl bg-[#EEF4FC] px-3 text-xl font-bold text-[#202630]">{label}</span>
+      </td>
+      <td>
+        <span className="font-semibold text-[#364152]">{kind}</span>
+        {detail && <span className="mt-1 block text-xs text-[#7A8493]">{detail}</span>}
+      </td>
+      <td className="whitespace-nowrap font-medium text-[#364152]">
         {sign.sample_count} / {sign.target} {sign.kind === "static" ? "samples" : "movements"}
-      </p>
-    </Link>
+      </td>
+      <td><Readiness value={value} ready={sign.ready} /></td>
+      <td className="text-right">
+        <Link to={`/signs/${sign.id}`} className="inline-flex min-h-11 items-center rounded-xl border border-[#C7D5E7] px-3 text-sm font-semibold text-[#32669A] transition hover:border-[#8BB8E8] hover:bg-[#F7FBFF] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8BB8E8]/35">
+          View samples
+        </Link>
+      </td>
+    </tr>
+  );
+}
+
+function SignTable({ title, signs, emptyText }) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-[#DDE4ED] bg-white shadow-[0_1px_2px_rgba(32,38,48,0.02)]">
+      <div className="border-b border-[#DDE4ED] px-5 py-4 sm:px-6">
+        <h2 className="text-lg font-bold tracking-[-0.02em] text-[#202630]">{title}</h2>
+      </div>
+      {signs.length === 0 ? (
+        <p className="px-5 py-7 text-sm text-[#636B77] sm:px-6">{emptyText}</p>
+      ) : (
+        <div className="table-scroll">
+          <table className="refined-table">
+            <thead>
+              <tr>
+                <th>Letter</th>
+                <th>Kind</th>
+                <th>Collected</th>
+                <th>Readiness</th>
+                <th className="text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>{signs.map((sign) => <SignRow key={sign.id} sign={sign} />)}</tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 
 export default function Signs() {
   const { signs, error, addSign } = useSigns();
-  const staticSigns = signs?.filter((s) => s.kind === "static") || [];
-  const motionSigns = signs?.filter((s) => s.kind === "motion") || [];
+  const staticSigns = signs?.filter((sign) => sign.kind === "static") || [];
+  const motionSigns = signs?.filter((sign) => sign.kind === "motion") || [];
+  const readyStatic = staticSigns.filter((sign) => sign.ready).length;
 
   return (
     <>
       <PageTitle
-        title="Signs"
-        subtitle={signs && `${staticSigns.filter((s) => s.ready).length} of ${staticSigns.length} static letters are ready to train`}
+        title="Signs overview"
+        subtitle={signs ? `${readyStatic} of ${staticSigns.length} static letters ready to train` : "Manage the signs used to train SENYA models."}
+        action={
+          <Link to="/models" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#C7D5E7] bg-white px-4 text-sm font-semibold text-[#32669A] transition hover:border-[#8BB8E8] hover:bg-[#F7FBFF] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8BB8E8]/35">
+            <span aria-hidden="true">◇</span> View models
+          </Link>
+        }
       />
       <AddSignForm onAdd={addSign} />
       <ErrorText>{error}</ErrorText>
       {!signs && !error && <Loading />}
 
       {signs && (
-        <>
-          <h2 className="mb-2 font-semibold">Static letters</h2>
-          {staticSigns.length === 0 && <p className="mb-6 text-sm text-gray-500">No static letters yet. Add one above.</p>}
-          <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-            {staticSigns.map((s) => (
-              <SignCard key={s.id} sign={s} />
-            ))}
-          </div>
-          <h2 className="mb-2 font-semibold">Motion signs</h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-            {motionSigns.map((s) => (
-              <SignCard key={s.id} sign={s} />
-            ))}
-          </div>
-        </>
+        <div className="space-y-6">
+          <SignTable title="Static letters" signs={staticSigns} emptyText="No static letters yet. Add one above." />
+          <SignTable title="Motion samples" signs={motionSigns} emptyText="No motion samples yet. Add a motion sign when its workflow is ready." />
+          <p className="flex items-center gap-2 text-sm text-[#636B77]"><Badge color="gray">i</Badge> Sample targets indicate readiness, not model accuracy.</p>
+        </div>
       )}
     </>
   );
