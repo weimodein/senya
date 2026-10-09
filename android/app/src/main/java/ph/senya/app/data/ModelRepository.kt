@@ -1,6 +1,7 @@
 package ph.senya.app.data
 
 import android.content.Context
+import ph.senya.app.BuildConfig
 import ph.senya.app.ml.AssetModelSource
 import ph.senya.app.ml.DirModelSource
 import ph.senya.app.ml.ModelBundle
@@ -16,9 +17,19 @@ class ModelRepository(context: Context) {
 
     data class Loaded(val bundle: ModelBundle, val message: String?)
 
-    var serverUrl: String
-        get() = prefs.getString(KEY_SERVER_URL, DEFAULT_SERVER_URL) ?: DEFAULT_SERVER_URL
-        set(value) = prefs.edit().putString(KEY_SERVER_URL, value.trim()).apply()
+    init {
+        // Older builds saved a LAN address here; the server now comes from the build (spec §0)
+        prefs.edit().remove(KEY_LEGACY_SERVER_URL).apply()
+    }
+
+    /** Developer override for testing against a local server. Only debug builds read it. */
+    var serverOverride: String
+        get() = prefs.getString(KEY_SERVER_OVERRIDE, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_SERVER_OVERRIDE, value.trim()).apply()
+
+    /** The deployed platform, set at build time (`senya.serverUrl`), unless a debug build overrides it. */
+    val serverUrl: String
+        get() = serverOverride.takeIf { BuildConfig.DEBUG && it.isNotBlank() } ?: BuildConfig.SERVER_URL
 
     var speakOnSpace: Boolean
         get() = prefs.getBoolean(KEY_SPEAK_ON_SPACE, false)
@@ -47,9 +58,9 @@ class ModelRepository(context: Context) {
     }
 
     companion object {
-        private const val KEY_SERVER_URL = "server_url"
+        private const val KEY_LEGACY_SERVER_URL = "server_url"
+        private const val KEY_SERVER_OVERRIDE = "server_override"
         private const val KEY_SPEAK_ON_SPACE = "speak_on_space"
         private const val KEY_VERSION = "installed_version"
-        const val DEFAULT_SERVER_URL = "http://192.168.1.2:8000"
     }
 }

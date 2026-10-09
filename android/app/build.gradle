@@ -19,6 +19,13 @@ plugins {
     id 'de.undercouch.download'
 }
 
+// Platform the app downloads models from (spec §0: deployed over HTTPS, not the LAN).
+// Override per machine with `senya.serverUrl=…` in local.properties or `-Psenya.serverUrl=…`.
+def senyaLocalProps = new Properties()
+def senyaLocalFile = rootProject.file('local.properties')
+if (senyaLocalFile.exists()) senyaLocalFile.withInputStream { senyaLocalProps.load(it) }
+def senyaServerUrl = findProperty('senya.serverUrl') ?: senyaLocalProps.getProperty('senya.serverUrl') ?: 'https://senya-k2wd.onrender.com'
+
 android {
     namespace 'ph.senya.app'
     compileSdk 34
@@ -31,6 +38,8 @@ android {
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField "String", "SERVER_URL", "\"${senyaServerUrl}\""
     }
 
     buildTypes {
@@ -50,6 +59,7 @@ android {
     }
     buildFeatures {
         viewBinding true
+        buildConfig true
     }
     testOptions {
         unitTests.all {

@@ -8,14 +8,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/server_url" />
-
-    <EditText
-        android:id="@+id/server_url"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:importantForAutofill="no"
-        android:inputType="textUri" />
+        android:text="@string/updates_info" />
 
     <com.google.android.material.switchmaterial.SwitchMaterial
         android:id="@+id/speak_on_space"
@@ -23,4 +16,32 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
         android:text="@string/speak_on_space" />
+
+    <!-- Shown only in debug builds (CameraFragment.showSettings) -->
+    <LinearLayout
+        android:id="@+id/server_override_group"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/server_override" />
+
+        <EditText
+            android:id="@+id/server_override"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:importantForAutofill="no"
+            android:inputType="textUri" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/server_override_help"
+            android:textSize="12sp" />
+    </LinearLayout>
 </LinearLayout>

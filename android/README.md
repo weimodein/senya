@@ -22,6 +22,8 @@ The first build downloads `hand_landmarker.task` into `app/src/main/assets/` (in
 Xiaomi phones need Developer options → "Install via USB" turned on before `installDebug` works.
 
 ## Models
+- The app downloads models from the deployed platform, https://senya-k2wd.onrender.com, over HTTPS. To build against
+  another server, set `senya.serverUrl=https://…` in `android/local.properties` or pass `-Psenya.serverUrl=…`.
 - The bundled model (version 0) lives in `app/src/main/assets/model/`. Refresh it from a running platform or the
   mock server: `python android/tools/fetch_bundled_model.py http://<server>:8000`.
 - At launch and on Settings → Check for update, the app downloads the platform's current version into app storage,
@@ -35,5 +37,6 @@ The app shows a four-step onboarding flow before opening the camera: welcome, ca
 The readiness screen checks the actual local model and voice state. The bundled v0 model in this checkout is a demo fixture, not evidence of FSL recognition. Once onboarding is complete, later launches go straight to the camera, or to the permission explanation if camera access was revoked.
 
 ## Mock server
-`cd fixtures/mock_server && python -m http.server 8000`, then set the app's server URL (the gear icon) to
-`http://<laptop-LAN-IP>:8000`.
+`cd fixtures/mock_server && python -m http.server 8000`, then in a **debug** build open Settings (the gear icon) and
+set the server override to `http://<laptop-LAN-IP>:8000`. Debug builds allow plain HTTP (`src/debug/`); release builds
+ignore the override and only use HTTPS.

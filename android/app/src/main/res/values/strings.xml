@@ -60,7 +60,9 @@
     <string name="no_model">No model loaded</string>
     <string name="no_guess">—</string>
     <string name="settings">Settings</string>
-    <string name="server_url">Server URL</string>
+    <string name="updates_info">New sign models download from the Senya server when you are online. Translation always works offline.</string>
+    <string name="server_override">Server override (debug builds only)</string>
+    <string name="server_override_help">Leave empty to use the deployed server.</string>
     <string name="speak_on_space">Speak each word automatically</string>
     <string name="save">Save</string>
     <string name="check_for_update">Check for update</string>

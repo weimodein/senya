@@ -19,12 +19,16 @@ import android.annotation.SuppressLint
 import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
+import android.util.Size
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.camera.core.AspectRatio
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -35,6 +39,7 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.navigation.Navigation
 import com.google.mediapipe.tasks.vision.core.RunningMode
+import ph.senya.app.BuildConfig
 import ph.senya.app.HandLandmarkerHelper
 import ph.senya.app.R
 import ph.senya.app.core.EngineModels
@@ -179,7 +184,12 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
             .setTargetRotation(binding.viewFinder.display.rotation)
             .build()
 
-        imageAnalyzer = ImageAnalysis.Builder().setTargetAspectRatio(AspectRatio.RATIO_4_3)
+        // Small frames: MediaPipe resizes to ~200 px internally, and bigger frames only cost bitmap copies (speed target, spec 5.5)
+        val analysisResolution = ResolutionSelector.Builder()
+            .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
+            .setResolutionStrategy(ResolutionStrategy(Size(320, 240), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER))
+            .build()
+        imageAnalyzer = ImageAnalysis.Builder().setResolutionSelector(analysisResolution)
             .setTargetRotation(binding.viewFinder.display.rotation)
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
@@ -195,7 +205,13 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
         }
     }
 
+    private var loggedSize = false
+
     private fun detectHand(imageProxy: ImageProxy) {
+        if (!loggedSize) {
+            loggedSize = true
+            Log.d(TAG, "perf analysis frame ${imageProxy.width}x${imageProxy.height} rotation=${imageProxy.imageInfo.rotationDegrees}")
+        }
         handLandmarkerHelper.detectLiveStream(
             imageProxy = imageProxy,
             isFrontCamera = cameraFacing == CameraSelector.LENS_FACING_FRONT
@@ -298,10 +314,13 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
 
     private fun showSettings() {
         val dialogBinding = DialogSettingsBinding.inflate(layoutInflater)
-        dialogBinding.serverUrl.setText(repository.serverUrl)
         dialogBinding.speakOnSpace.isChecked = repository.speakOnSpace
+        // Release builds always use the deployed server; only debug builds can point elsewhere
+        dialogBinding.serverOverrideGroup.visibility = if (BuildConfig.DEBUG) View.VISIBLE else View.GONE
+        dialogBinding.serverOverride.setText(repository.serverOverride)
+        dialogBinding.serverOverride.hint = BuildConfig.SERVER_URL
         fun save() {
-            repository.serverUrl = dialogBinding.serverUrl.text.toString()
+            if (BuildConfig.DEBUG) repository.serverOverride = dialogBinding.serverOverride.text.toString()
             repository.speakOnSpace = dialogBinding.speakOnSpace.isChecked
         }
         AlertDialog.Builder(requireContext())
