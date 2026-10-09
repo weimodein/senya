@@ -3,7 +3,7 @@ import json
 import numpy as np
 import pytest
 
-from app.core import contract, data, export, pipeline
+from app.core import contract, data, export, pipeline, train
 
 
 @pytest.fixture(scope="module")
@@ -68,3 +68,15 @@ def test_not_enough_data_is_a_clear_error():
     ex = data.synthetic_export(seed=1, n_uploads=2, per_upload=5)
     with pytest.raises(ValueError, match="not enough data"):
         pipeline.run(ex, static_epochs=1)
+
+
+def test_motion_trains_from_three_single_take_clips_with_harvested_none():
+    """The real shape after this change: 1 sequence per J clip, and _none's sequences share J's upload ids."""
+    ex = data.synthetic_export(seed=2, n_uploads=3, seq_per_upload=1)
+    by = {s["label"]: s for s in ex["signs"]}
+    none_seq = by["_none"]["uploads"][0]["sequences"][0]
+    by["_none"]["uploads"] = [{"id": u["id"], "sequences": [none_seq, none_seq]} for u in by["J"]["uploads"]]
+    ds = data.load_export(ex)
+    assert "J" in ds.motion_labels and "_none" in ds.motion_labels
+    trained = train.train_motion(ds.motion_items, ds.motion_labels, epochs=2)
+    assert trained.report is not None

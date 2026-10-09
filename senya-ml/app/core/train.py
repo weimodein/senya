@@ -75,9 +75,10 @@ def train_motion(items: list, labels: list, epochs: int = 50, seed: int = 0, pro
     """items hold RAW sequence dicts in .x (see data.load_export)."""
     train, val, warnings = data.split_by_upload(items, seed=seed)
     rng = np.random.default_rng(seed)
+    per_label = Counter(it.label for it in train)
     ax, ay = [], []
     for it in train:
-        for arr in augment.augment_sequence(data.sequence_to_array, it.x, rng):
+        for arr in augment.augment_sequence(data.sequence_to_array, it.x, rng, copies=augment.copies_for(per_label[it.label])):
             ax.append(arr)
             ay.append(it.label)
     vx = np.stack([data.sequence_to_array(i.x) for i in val]).astype("float32")

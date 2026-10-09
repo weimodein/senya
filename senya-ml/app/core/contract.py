@@ -20,8 +20,9 @@ MOTION_CONFIG_DEFAULT = {
     "replace_window_ms": 1000, "start_shapes": {"J": ["I"], "Z": []},
 }
 
-# Training thresholds (spec §4.3)
+# Training thresholds (spec §4.3). Motion clips are single takes (one movement each, raise and lower cut away
+# into _none), so 3 clips activate a motion sign; 3 clips also yield about 6 _none cuts.
 MIN_STATIC_SAMPLES = 30
-MIN_MOTION_SEQUENCES = 20
-MIN_MOTION_UPLOADS = 2
-MIN_NONE_SEQUENCES = 40
+MIN_MOTION_SEQUENCES = 3
+MIN_MOTION_UPLOADS = 3
+MIN_NONE_SEQUENCES = 6

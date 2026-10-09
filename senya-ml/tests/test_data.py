@@ -53,3 +53,14 @@ def test_synthetic_export_has_the_documented_shape():
     assert len(static["uploads"]) >= 3 and len(static["uploads"][0]["samples"][0]) == contract.FLOATS
     motion = next(s for s in export["signs"] if s["label"] == "J")
     assert len(motion["uploads"][0]["sequences"][0]["frames"][0]["landmarks"]) == contract.FLOATS
+
+
+def test_three_clips_activate_a_motion_sign_and_six_none_sequences_are_enough():
+    ds = data.load_export(data.synthetic_export(seed=0, n_uploads=3, seq_per_upload=2))
+    assert ds.motion_labels == ["_none", "J", "Z"]
+
+
+def test_two_clips_are_not_enough_for_a_motion_sign():
+    ds = data.load_export(data.synthetic_export(seed=0, n_uploads=2, seq_per_upload=3))
+    assert "J" not in ds.motion_labels
+    assert any(s.startswith("J:") for s in ds.skipped)
