@@ -96,10 +96,13 @@ senya/
     tests/
 
   senya-admin/
-    src/api/                   client.js, auth.js, signs.js, models.js
-    src/context/AuthContext.jsx
-    src/components/            Layout, Sidebar, ProtectedRoute, Button, Modal, ProgressBar, Toast
-    src/pages/                 Login, Signs, SignDetail, Models
+    vite.config.js             dev proxy: /api, /models, /health → :8000 (so the panel is always same-origin)
+    src/index.css              design tokens (CSS variables): paper surfaces, ink text levels, clay accent
+    src/api/client.js          the panel's only HTTP client: axios + JWT, logs out on 401
+    src/api/index.js           auth, signs, models calls; training thresholds
+    src/context/               AuthContext (login/session), ToastContext
+    src/components/            Layout (sidebar + "On phones"), ProtectedRoute, ui.jsx (Button, Badge, Glyph, Readiness, …)
+    src/pages/                 Login, Signs (alphabet chart), SignDetail (upload queue), Models (train / deploy / roll back)
 ```
 
 ---
@@ -280,8 +283,8 @@ Tests: `npm test` in `senya-backend/` (uses `DATABASE_URL`, in its own `senya_te
 | M1 | Backend serves the fixture v0 model at `/api/model/latest` (`npm run seed:v0`) | done — matches the mock server's response |
 | M2 | Every admin and `/api/ml` route works (`senya-backend` `npm test`) | done — 11/11 against Supabase |
 | M3 | Real clips → extraction → training → callbacks → `trained`, locally | done — 6 FSL clips, 95% validation accuracy |
-| M4 | The same loop from the admin panel in a browser | next |
-| M5 | The same loop on the Render URL, with the ML service behind the tunnel | |
+| M4 | The same loop from the admin panel in a browser | done — real clips uploaded, trained, deployed and rolled back from the panel |
+| M5 | The same loop on the Render URL, with the ML service behind the tunnel | next |
 | M6 | Real data → deploy → phone downloads → airplane-mode demo | |
 
 ---
