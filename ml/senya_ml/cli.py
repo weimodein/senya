@@ -28,6 +28,11 @@ def main(argv=None):
 
     w = sub.add_parser("worker")
     w.add_argument("--interval", type=float, default=5.0)
+    w.add_argument("--once", action="store_true", help="exit after one job")
+    w.add_argument("--epochs", type=int, default=60)
+
+    sd = sub.add_parser("seed", help="upload synthetic clips to a running server")
+    sd.add_argument("--seed", type=int, default=0)
 
     a = p.parse_args(argv)
     if a.cmd == "make-fixtures":
@@ -55,7 +60,12 @@ def main(argv=None):
     elif a.cmd == "worker":
         from .client import Server
         from .worker import poll_forever
-        poll_forever(Server(), a.interval)
+        poll_forever(Server(), a.interval, once=a.once, static_epochs=a.epochs, motion_epochs=a.epochs)
+    elif a.cmd == "seed":
+        from . import data
+        from .client import Server
+        from .seed import seed
+        print(seed(Server(), data.synthetic_export(seed=a.seed)))
 
 
 if __name__ == "__main__":

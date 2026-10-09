@@ -145,7 +145,7 @@ Fields: `job_id`, `meta` (JSON string, below) and file parts named exactly `mode
 
 ## 5. Database
 
-The ready-to-run schema is `docs/schema.sql` (PostgreSQL). Highlights:
+The ready-to-run schema is `platform/server/schema.sql` (PostgreSQL). Highlights:
 - `signs.label` is unique; `_none` is a normal row with `kind = 'motion'`.
 - `samples.landmarks` and `sequences.frames` are `JSONB` (63 floats / raw frames).
 - `models` has a **partial unique index** so only one row can have `is_current = true`.
@@ -166,7 +166,7 @@ Never commit these. Put them in `.env` files (git-ignored) and in the host's set
 
 ## 7. Local development, step by step
 
-1. **Person B:** run Postgres locally (Docker or installed), apply `docs/schema.sql`, start Express on `:8000`.
+1. **Person B:** run Postgres locally (Docker or installed), apply `platform/server/schema.sql`, start Express on `:8000`.
 2. **Person A:** `python -m senya_ml.cli make-fixtures` fills `fixtures/mock_server/`. Serve it with `python -m http.server 8000` (inside that folder) to test the app with no platform at all.
 3. **Both:** once M2 is up, Person B can `seed` the dummy v0 by `POST /api/models` using the files in `fixtures/mock_server/models/v0/`. Then the app and the server are connected.
 4. **Phone:** `adb reverse tcp:8000 tcp:8000` and set the app server URL to `http://127.0.0.1:8000`, or use the deployed HTTPS URL.

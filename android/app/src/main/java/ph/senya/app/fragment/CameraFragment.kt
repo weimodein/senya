@@ -212,6 +212,7 @@ class CameraFragment : Fragment(), HandLandmarkerHelper.LandmarkerListener {
         val landmarks = Landmarks.fromResult(result)
         val out = engine.onFrame(result.timestampMs(), landmarks)
         val currentFps = fps.tick(result.timestampMs())
+        Log.d(TAG, "perf mediapipe=${resultBundle.inferenceTime}ms fps=$currentFps")
         activity?.runOnUiThread {
             if (_binding == null) return@runOnUiThread
             binding.overlay.setResults(

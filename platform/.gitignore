@@ -13,3 +13,9 @@ __pycache__/
 .venv/
 venv/
 .pytest_cache/
+
+# Node / web platform
+node_modules/
+data/
+.env
+web/dist/

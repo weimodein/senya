@@ -19,7 +19,7 @@ def run_job(server: Server, job_id: int, **kwargs) -> int:
     return version
 
 
-def poll_forever(server: Server, interval: float = 5.0, **kwargs) -> None:
+def poll_forever(server: Server, interval: float = 5.0, once: bool = False, **kwargs) -> None:
     print(f"worker polling {server.base} every {interval}s (Ctrl+C to stop)")
     while True:
         try:
@@ -38,3 +38,5 @@ def poll_forever(server: Server, interval: float = 5.0, **kwargs) -> None:
         except Exception as e:
             traceback.print_exc()
             server.fail(job, f"{type(e).__name__}: {e}")
+        if once:
+            return
