@@ -11,8 +11,8 @@ AppBuildersPH Hackathon 2026 · Theme: Local AI
 
 ## Demo
 
-- Demo video: TODO
-- X / LinkedIn post: TODO
+- Demo video: https://youtu.be/bjrztg3uUOQ
+- X / LinkedIn post: https://www.linkedin.com/posts/kersheytumbagahan_appbuildersph-localai-accessibility-ugcPost-7514481150900260864-a8rL/
 
 ---
 
